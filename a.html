@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title></title>
+	</head>
+	<body>
+	</body>
+	
+	<script>
+		const wb = new WebSocket('ws://192.168.188.188:9092');
+		
+		wb.onopen = function () {
+		  console.log('open');
+		};
+		
+		wb.onmessage = function (event) {
+		  console.log(event.data);
+		};
+		
+		wb.onerror = function (error) {
+		  console.log('WebSocket Error', error);
+		};
+	</script>
+</html>

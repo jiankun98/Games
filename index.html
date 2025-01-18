@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>五子棋</title>
+		<script src="./js/gobang/index.js"></script>
+		<script type="text/javascript">
+			console.log('123')
+		</script>
+	</head>
+	<body>
+		<canvas id="game-canvas"></canvas>
+	</body>
+	<script>
+		var Game = /** @class */ (function () {
+		    function Game(canvasElement, config) {
+		        var _this = this;
+		        this.config = {
+		            size: 20, // 棋盘大小 20 * 20
+		            first: "black", // 先手颜色
+		            offset: 20, // 棋盘内边距
+		            judge_fill_count: 5, // 连子个数
+		        };
+		        // 所有棋子点 二维数组
+		        this.points = [];
+		        // 下次落子的颜色
+		        this.next_drop = "black";
+		        // 初始化配置
+		        this.init = function () {
+		            var _a = _this.config, size = _a.size, offset = _a.offset, first = _a.first;
+		            var grid_size = Game.grid_size;
+		            // 设置先手
+		            _this.next_drop = first !== null && first !== void 0 ? first : "black";
+		            var sizeMax = size * grid_size;
+		            // 设置画布大小
+		            _this.canvas.width = sizeMax + offset * 2;
+		            _this.canvas.height = sizeMax + offset * 2;
+		            // 设置画布样式
+		            _this.canvas.style.backgroundColor = "#e3cdb0";
+		            _this.ctx.lineWidth = 2;
+		            _this.ctx.strokeStyle = "#000";
+		            // 画棋盘线
+		            for (var i = 0; i <= size; i++) {
+		                var addressIndex = i * grid_size;
+		                _this.ctx.beginPath();
+		                // 画横线
+		                _this.ctx.moveTo(offset, addressIndex + offset);
+		                _this.ctx.lineTo(sizeMax + offset, addressIndex + offset);
+		                // 画竖线
+		                _this.ctx.moveTo(addressIndex + offset, offset);
+		                _this.ctx.lineTo(addressIndex + offset, sizeMax + offset);
+		                _this.ctx.stroke();
+		                _this.ctx.closePath();
+		            }
+		            // 设置棋子点坐标
+		            for (var i = 0; i <= size; i++) {
+		                var points = [];
+		                for (var j = 0; j <= size; j++) {
+		                    var point = {
+		                        x: i * grid_size + offset,
+		                        y: j * grid_size + offset,
+		                        fill: null,
+		                        address: [i, j],
+		                    };
+		                    points.push(point);
+		                }
+		                _this.points.push(points);
+		            }
+		        };
+		        // 设置画布点击事件
+		        this.set_click_event = function () {
+		            _this.canvas.addEventListener("click", function (event) {
+		                var x = event.offsetX;
+		                var y = event.offsetY;
+		                var point = _this.get_point_by_coordinate(x, y);
+		                if (!point) {
+		                    return;
+		                }
+		                _this.drop_chess(point);
+		            });
+		        };
+		        // 根据鼠标点击坐标 获取棋子点
+		        this.get_point_by_coordinate = function (x, y) {
+		            var drop_area_size = Game.drop_area_size;
+		            var point = _this.points.reduce(function (s, current) {
+		                if (s)
+		                    return s;
+		                var point = current.find(function (p) {
+		                    var address_x = p.x, address_y = p.y;
+		                    var half_size = drop_area_size / 2;
+		                    var is_in_point = x >= address_x - half_size &&
+		                        x <= address_x + half_size &&
+		                        y >= address_y - half_size &&
+		                        y <= address_y + half_size;
+		                    return is_in_point;
+		                });
+		                if (point) {
+		                    s = point;
+		                }
+		                return s;
+		            }, null);
+		            return point;
+		        };
+		        // 落子
+		        this.drop_chess = function (point) {
+		            // 判断是否已经有棋子
+		            var x = point.x, y = point.y, fill = point.fill;
+		            var ctx = _this.ctx;
+		            // 已经有棋子
+		            if (fill) {
+		                return;
+		            }
+		            // 落子类型
+		            point.fill = _this.next_drop;
+		            // 画棋子
+		            ctx.beginPath();
+		            ctx.arc(x, y, 15, 0, 2 * Math.PI);
+		            ctx.fillStyle = _this.next_drop === "black" ? "#000" : "#fff";
+		            ctx.fill();
+		            ctx.closePath();
+		            // 判断输赢
+		            if (_this.check_win(point)) {
+		                _this.end();
+		                return;
+		            }
+		            // 翻转下一次落子的颜色
+		            _this.flip_drop();
+		        };
+		        // 翻转下一次落子的颜色 黑--->白 白--->黑
+		        this.flip_drop = function () {
+		            _this.next_drop = _this.next_drop === "black" ? "white" : "black";
+		        };
+		        // 判断输赢
+		        this.check_win = function (point) {
+		            var points = _this.points;
+		            var size = _this.config.size;
+		            var _a = point.address, x = _a[0], y = _a[1], fill = point.fill;
+		            // 判断横向
+		            if (_this.check_win_by_row(x, y, fill)) {
+		                return true;
+		            }
+		            // 判断纵向
+		            if (_this.check_win_by_col(x, y, fill)) {
+		                return true;
+		            }
+		            // 判断斜向 左上到右下
+		            if (_this.check_win_by_top_left_right_bottom(x, y, fill)) {
+		                return true;
+		            }
+		            // 判断斜向 右上到左下
+		            if (_this.check_win_by_top_right_left_bottom(x, y, fill)) {
+		                return true;
+		            }
+		        };
+		        // 判断横向
+		        this.check_win_by_row = function (x, y, fill) {
+		            var judge_fill_count = _this.config.judge_fill_count;
+		            var fill_arr = [];
+		            for (var i = 1; i < judge_fill_count; i++) {
+		                var currentAddress_x = x - i;
+		                var point = (_this.points[currentAddress_x] || [])[y];
+		                if (!point)
+		                    break;
+		                if (point.fill !== fill)
+		                    break;
+		                fill_arr.unshift(point);
+		            }
+		            fill_arr.push(_this.points[x][y]);
+		            for (var i = 1; i < judge_fill_count; i++) {
+		                var currentAddress_x = x + i;
+		                var point = (_this.points[currentAddress_x] || [])[y];
+		                if (!point)
+		                    break;
+		                if (point.fill !== fill)
+		                    break;
+		                fill_arr.push(point);
+		            }
+		            if (fill_arr.length === judge_fill_count - 1) {
+		                // 已连成n -1后，在判断两头是否有空位，两头都有空位则为赢
+		                var _a = fill_arr[0].address, start_x = _a[0], start_y = _a[1];
+		                var _b = fill_arr[fill_arr.length - 1].address, end_x = _b[0], end_y = _b[1];
+		                var ponitS = (_this.points[start_x - 1] || [])[start_y];
+		                var pointE = (_this.points[end_x + 1] || [])[end_y];
+		                // 两头都有空位则为赢
+		                if (ponitS && pointE && !ponitS.fill && !pointE.fill) {
+		                    return true;
+		                }
+		                return false;
+		            }
+		            if (fill_arr.length >= judge_fill_count) {
+		                return true;
+		            }
+		        };
+		        // 判断纵向
+		        this.check_win_by_col = function (x, y, fill) {
+		            var judge_fill_count = _this.config.judge_fill_count;
+		            var fill_arr = [];
+		            for (var i = 1; i < judge_fill_count; i++) {
+		                var currentAddress_y = y - i;
+		                var point = (_this.points[x] || [])[currentAddress_y];
+		                if (!point)
+		                    break;
+		                if (point.fill !== fill)
+		                    break;
+		                fill_arr.unshift(point);
+		            }
+		            fill_arr.push(_this.points[x][y]);
+		            for (var i = 1; i < judge_fill_count; i++) {
+		                var currentAddress_y = y + i;
+		                var point = (_this.points[x] || [])[currentAddress_y];
+		                if (!point)
+		                    break;
+		                if (point.fill !== fill)
+		                    break;
+		                fill_arr.push(point);
+		            }
+		            if (fill_arr.length === judge_fill_count - 1) {
+		                // 已连成n -1后，在判断两头是否有空位，两头都有空位则为赢
+		                var _a = fill_arr[0].address, start_x = _a[0], start_y = _a[1];
+		                var _b = fill_arr[fill_arr.length - 1].address, end_x = _b[0], end_y = _b[1];
+		                var ponitS = (_this.points[start_x] || [])[start_y - 1];
+		                var pointE = (_this.points[end_x] || [])[end_y + 1];
+		                // 两头都有空位则为赢
+		                if (ponitS && pointE && !ponitS.fill && !pointE.fill) {
+		                    return true;
+		                }
+		                return false;
+		            }
+		            if (fill_arr.length >= judge_fill_count) {
+		                return true;
+		            }
+		        };
+		        // 判断斜向 左上到右下
+		        this.check_win_by_top_left_right_bottom = function (x, y, fill) {
+		            var judge_fill_count = _this.config.judge_fill_count;
+		            var fill_arr = [];
+		            for (var i = 1; i < judge_fill_count; i++) {
+		                var currentAddress_x = x - i;
+		                var currentAddress_y = y - i;
+		                var point = (_this.points[currentAddress_x] || [])[currentAddress_y];
+		                if (!point)
+		                    break;
+		                if (point.fill !== fill)
+		                    break;
+		                fill_arr.unshift(point);
+		            }
+		            fill_arr.push(_this.points[x][y]);
+		            for (var i = 1; i < judge_fill_count; i++) {
+		                var currentAddress_x = x + i;
+		                var currentAddress_y = y + i;
+		                var point = (_this.points[currentAddress_x] || [])[currentAddress_y];
+		                if (!point)
+		                    break;
+		                if (point.fill !== fill)
+		                    break;
+		                fill_arr.push(point);
+		            }
+		            if (fill_arr.length === judge_fill_count - 1) {
+		                // 已连成n -1后，在判断两头是否有空位，两头都有空位则为赢
+		                var _a = fill_arr[0].address, start_x = _a[0], start_y = _a[1];
+		                var _b = fill_arr[fill_arr.length - 1].address, end_x = _b[0], end_y = _b[1];
+		                var ponitS = (_this.points[start_x - 1] || [])[start_y - 1];
+		                var pointE = (_this.points[end_x + 1] || [])[end_y + 1];
+		                // 两头都有空位则为赢
+		                if (ponitS && pointE && !ponitS.fill && !pointE.fill) {
+		                    return true;
+		                }
+		                return false;
+		            }
+		            if (fill_arr.length >= judge_fill_count) {
+		                return true;
+		            }
+		        };
+		        // 判断斜向 右上到左下
+		        this.check_win_by_top_right_left_bottom = function (x, y, fill) {
+		            var judge_fill_count = _this.config.judge_fill_count;
+		            var fill_arr = [];
+		            for (var i = 1; i < judge_fill_count; i++) {
+		                var currentAddress_x = x - i;
+		                var currentAddress_y = y + i;
+		                var point = (_this.points[currentAddress_x] || [])[currentAddress_y];
+		                if (!point)
+		                    break;
+		                if (point.fill !== fill)
+		                    break;
+		                fill_arr.unshift(point);
+		            }
+		            fill_arr.push(_this.points[x][y]);
+		            for (var i = 1; i < judge_fill_count; i++) {
+		                var currentAddress_x = x + i;
+		                var currentAddress_y = y - i;
+		                var point = (_this.points[currentAddress_x] || [])[currentAddress_y];
+		                if (!point)
+		                    break;
+		                if (point.fill !== fill)
+		                    break;
+		                fill_arr.push(point);
+		            }
+		            if (fill_arr.length === judge_fill_count - 1) {
+		                // 已连成n -1后，在判断两头是否有空位，两头都有空位则为赢
+		                var _a = fill_arr[0].address, start_x = _a[0], start_y = _a[1];
+		                var _b = fill_arr[fill_arr.length - 1].address, end_x = _b[0], end_y = _b[1];
+		                var ponitS = (_this.points[start_x - 1] || [])[start_y + 1];
+		                var pointE = (_this.points[end_x + 1] || [])[end_y - 1];
+		                // 两头都有空位则为赢
+		                if (ponitS && pointE && !ponitS.fill && !pointE.fill) {
+		                    return true;
+		                }
+		                return false;
+		            }
+		            if (fill_arr.length >= judge_fill_count) {
+		                return true;
+		            }
+		        };
+		        // 开始游戏
+		        this.start = function () {
+		            // 设置画布点击事件
+		            _this.set_click_event();
+		        };
+		        this.end = function () {
+		            setTimeout(function () {
+		                var win_account = _this.next_drop === "black" ? "黑子" : "白子";
+		                var lose_account = _this.next_drop === "black" ? "白子" : "黑子";
+		                alert("".concat(win_account, " \u83B7\u80DC, ").concat(lose_account, " \u8BF4\u8BDD\uFF01"));
+		            }, 10);
+		        };
+		        Object.assign(this.config, config);
+		        if (!canvasElement)
+		            return;
+		        this.canvas = canvasElement;
+		        this.ctx = this.canvas.getContext("2d");
+		        this.init();
+		    }
+		    // 初始配置
+		    // 每个棋子点，鼠标点击的判定生效区间差值 如：20，20的棋子点 生效区间为：12，12， 28，12， 12，28， 28，28
+		    Game.drop_area_size = 16;
+		    // 棋盘网格大小
+		    Game.grid_size = 40;
+		    return Game;
+		}());
+		const game = new Game(document.getElementById('game-canvas'), {
+			size: 16,
+			judge_fill_count: 5,
+			first: 'white'
+		});
+		game.start();
+	</script>
+</html>

@@ -1,0 +1,8 @@
+
+# Ignore compiled Python files
+
+*.pyc
+
+*.pyo
+
+/node_modules/
