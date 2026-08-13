@@ -1,348 +1,194 @@
-<!DOCTYPE html>
-<html>
-	<head>
-		<meta charset="utf-8" />
-		<title>五子棋</title>
-		<script src="./js/gobang/index.js"></script>
-		<script type="text/javascript">
-			console.log('123')
-		</script>
-	</head>
-	<body>
-		<canvas id="game-canvas"></canvas>
-	</body>
-	<script>
-		var Game = /** @class */ (function () {
-		    function Game(canvasElement, config) {
-		        var _this = this;
-		        this.config = {
-		            size: 20, // 棋盘大小 20 * 20
-		            first: "black", // 先手颜色
-		            offset: 20, // 棋盘内边距
-		            judge_fill_count: 5, // 连子个数
-		        };
-		        // 所有棋子点 二维数组
-		        this.points = [];
-		        // 下次落子的颜色
-		        this.next_drop = "black";
-		        // 初始化配置
-		        this.init = function () {
-		            var _a = _this.config, size = _a.size, offset = _a.offset, first = _a.first;
-		            var grid_size = Game.grid_size;
-		            // 设置先手
-		            _this.next_drop = first !== null && first !== void 0 ? first : "black";
-		            var sizeMax = size * grid_size;
-		            // 设置画布大小
-		            _this.canvas.width = sizeMax + offset * 2;
-		            _this.canvas.height = sizeMax + offset * 2;
-		            // 设置画布样式
-		            _this.canvas.style.backgroundColor = "#e3cdb0";
-		            _this.ctx.lineWidth = 2;
-		            _this.ctx.strokeStyle = "#000";
-		            // 画棋盘线
-		            for (var i = 0; i <= size; i++) {
-		                var addressIndex = i * grid_size;
-		                _this.ctx.beginPath();
-		                // 画横线
-		                _this.ctx.moveTo(offset, addressIndex + offset);
-		                _this.ctx.lineTo(sizeMax + offset, addressIndex + offset);
-		                // 画竖线
-		                _this.ctx.moveTo(addressIndex + offset, offset);
-		                _this.ctx.lineTo(addressIndex + offset, sizeMax + offset);
-		                _this.ctx.stroke();
-		                _this.ctx.closePath();
-		            }
-		            // 设置棋子点坐标
-		            for (var i = 0; i <= size; i++) {
-		                var points = [];
-		                for (var j = 0; j <= size; j++) {
-		                    var point = {
-		                        x: i * grid_size + offset,
-		                        y: j * grid_size + offset,
-		                        fill: null,
-		                        address: [i, j],
-		                    };
-		                    points.push(point);
-		                }
-		                _this.points.push(points);
-		            }
-		        };
-		        // 设置画布点击事件
-		        this.set_click_event = function () {
-		            _this.canvas.addEventListener("click", function (event) {
-		                var x = event.offsetX;
-		                var y = event.offsetY;
-		                var point = _this.get_point_by_coordinate(x, y);
-		                if (!point) {
-		                    return;
-		                }
-		                _this.drop_chess(point);
-		            });
-		        };
-		        // 根据鼠标点击坐标 获取棋子点
-		        this.get_point_by_coordinate = function (x, y) {
-		            var drop_area_size = Game.drop_area_size;
-		            var point = _this.points.reduce(function (s, current) {
-		                if (s)
-		                    return s;
-		                var point = current.find(function (p) {
-		                    var address_x = p.x, address_y = p.y;
-		                    var half_size = drop_area_size / 2;
-		                    var is_in_point = x >= address_x - half_size &&
-		                        x <= address_x + half_size &&
-		                        y >= address_y - half_size &&
-		                        y <= address_y + half_size;
-		                    return is_in_point;
-		                });
-		                if (point) {
-		                    s = point;
-		                }
-		                return s;
-		            }, null);
-		            return point;
-		        };
-		        // 落子
-		        this.drop_chess = function (point) {
-		            // 判断是否已经有棋子
-		            var x = point.x, y = point.y, fill = point.fill;
-		            var ctx = _this.ctx;
-		            // 已经有棋子
-		            if (fill) {
-		                return;
-		            }
-		            // 落子类型
-		            point.fill = _this.next_drop;
-		            // 画棋子
-		            ctx.beginPath();
-		            ctx.arc(x, y, 15, 0, 2 * Math.PI);
-		            ctx.fillStyle = _this.next_drop === "black" ? "#000" : "#fff";
-		            ctx.fill();
-		            ctx.closePath();
-		            // 判断输赢
-		            if (_this.check_win(point)) {
-		                _this.end();
-		                return;
-		            }
-		            // 翻转下一次落子的颜色
-		            _this.flip_drop();
-		        };
-		        // 翻转下一次落子的颜色 黑--->白 白--->黑
-		        this.flip_drop = function () {
-		            _this.next_drop = _this.next_drop === "black" ? "white" : "black";
-		        };
-		        // 判断输赢
-		        this.check_win = function (point) {
-		            var points = _this.points;
-		            var size = _this.config.size;
-		            var _a = point.address, x = _a[0], y = _a[1], fill = point.fill;
-		            // 判断横向
-		            if (_this.check_win_by_row(x, y, fill)) {
-		                return true;
-		            }
-		            // 判断纵向
-		            if (_this.check_win_by_col(x, y, fill)) {
-		                return true;
-		            }
-		            // 判断斜向 左上到右下
-		            if (_this.check_win_by_top_left_right_bottom(x, y, fill)) {
-		                return true;
-		            }
-		            // 判断斜向 右上到左下
-		            if (_this.check_win_by_top_right_left_bottom(x, y, fill)) {
-		                return true;
-		            }
-		        };
-		        // 判断横向
-		        this.check_win_by_row = function (x, y, fill) {
-		            var judge_fill_count = _this.config.judge_fill_count;
-		            var fill_arr = [];
-		            for (var i = 1; i < judge_fill_count; i++) {
-		                var currentAddress_x = x - i;
-		                var point = (_this.points[currentAddress_x] || [])[y];
-		                if (!point)
-		                    break;
-		                if (point.fill !== fill)
-		                    break;
-		                fill_arr.unshift(point);
-		            }
-		            fill_arr.push(_this.points[x][y]);
-		            for (var i = 1; i < judge_fill_count; i++) {
-		                var currentAddress_x = x + i;
-		                var point = (_this.points[currentAddress_x] || [])[y];
-		                if (!point)
-		                    break;
-		                if (point.fill !== fill)
-		                    break;
-		                fill_arr.push(point);
-		            }
-		            if (fill_arr.length === judge_fill_count - 1) {
-		                // 已连成n -1后，在判断两头是否有空位，两头都有空位则为赢
-		                var _a = fill_arr[0].address, start_x = _a[0], start_y = _a[1];
-		                var _b = fill_arr[fill_arr.length - 1].address, end_x = _b[0], end_y = _b[1];
-		                var ponitS = (_this.points[start_x - 1] || [])[start_y];
-		                var pointE = (_this.points[end_x + 1] || [])[end_y];
-		                // 两头都有空位则为赢
-		                if (ponitS && pointE && !ponitS.fill && !pointE.fill) {
-		                    return true;
-		                }
-		                return false;
-		            }
-		            if (fill_arr.length >= judge_fill_count) {
-		                return true;
-		            }
-		        };
-		        // 判断纵向
-		        this.check_win_by_col = function (x, y, fill) {
-		            var judge_fill_count = _this.config.judge_fill_count;
-		            var fill_arr = [];
-		            for (var i = 1; i < judge_fill_count; i++) {
-		                var currentAddress_y = y - i;
-		                var point = (_this.points[x] || [])[currentAddress_y];
-		                if (!point)
-		                    break;
-		                if (point.fill !== fill)
-		                    break;
-		                fill_arr.unshift(point);
-		            }
-		            fill_arr.push(_this.points[x][y]);
-		            for (var i = 1; i < judge_fill_count; i++) {
-		                var currentAddress_y = y + i;
-		                var point = (_this.points[x] || [])[currentAddress_y];
-		                if (!point)
-		                    break;
-		                if (point.fill !== fill)
-		                    break;
-		                fill_arr.push(point);
-		            }
-		            if (fill_arr.length === judge_fill_count - 1) {
-		                // 已连成n -1后，在判断两头是否有空位，两头都有空位则为赢
-		                var _a = fill_arr[0].address, start_x = _a[0], start_y = _a[1];
-		                var _b = fill_arr[fill_arr.length - 1].address, end_x = _b[0], end_y = _b[1];
-		                var ponitS = (_this.points[start_x] || [])[start_y - 1];
-		                var pointE = (_this.points[end_x] || [])[end_y + 1];
-		                // 两头都有空位则为赢
-		                if (ponitS && pointE && !ponitS.fill && !pointE.fill) {
-		                    return true;
-		                }
-		                return false;
-		            }
-		            if (fill_arr.length >= judge_fill_count) {
-		                return true;
-		            }
-		        };
-		        // 判断斜向 左上到右下
-		        this.check_win_by_top_left_right_bottom = function (x, y, fill) {
-		            var judge_fill_count = _this.config.judge_fill_count;
-		            var fill_arr = [];
-		            for (var i = 1; i < judge_fill_count; i++) {
-		                var currentAddress_x = x - i;
-		                var currentAddress_y = y - i;
-		                var point = (_this.points[currentAddress_x] || [])[currentAddress_y];
-		                if (!point)
-		                    break;
-		                if (point.fill !== fill)
-		                    break;
-		                fill_arr.unshift(point);
-		            }
-		            fill_arr.push(_this.points[x][y]);
-		            for (var i = 1; i < judge_fill_count; i++) {
-		                var currentAddress_x = x + i;
-		                var currentAddress_y = y + i;
-		                var point = (_this.points[currentAddress_x] || [])[currentAddress_y];
-		                if (!point)
-		                    break;
-		                if (point.fill !== fill)
-		                    break;
-		                fill_arr.push(point);
-		            }
-		            if (fill_arr.length === judge_fill_count - 1) {
-		                // 已连成n -1后，在判断两头是否有空位，两头都有空位则为赢
-		                var _a = fill_arr[0].address, start_x = _a[0], start_y = _a[1];
-		                var _b = fill_arr[fill_arr.length - 1].address, end_x = _b[0], end_y = _b[1];
-		                var ponitS = (_this.points[start_x - 1] || [])[start_y - 1];
-		                var pointE = (_this.points[end_x + 1] || [])[end_y + 1];
-		                // 两头都有空位则为赢
-		                if (ponitS && pointE && !ponitS.fill && !pointE.fill) {
-		                    return true;
-		                }
-		                return false;
-		            }
-		            if (fill_arr.length >= judge_fill_count) {
-		                return true;
-		            }
-		        };
-		        // 判断斜向 右上到左下
-		        this.check_win_by_top_right_left_bottom = function (x, y, fill) {
-		            var judge_fill_count = _this.config.judge_fill_count;
-		            var fill_arr = [];
-		            for (var i = 1; i < judge_fill_count; i++) {
-		                var currentAddress_x = x - i;
-		                var currentAddress_y = y + i;
-		                var point = (_this.points[currentAddress_x] || [])[currentAddress_y];
-		                if (!point)
-		                    break;
-		                if (point.fill !== fill)
-		                    break;
-		                fill_arr.unshift(point);
-		            }
-		            fill_arr.push(_this.points[x][y]);
-		            for (var i = 1; i < judge_fill_count; i++) {
-		                var currentAddress_x = x + i;
-		                var currentAddress_y = y - i;
-		                var point = (_this.points[currentAddress_x] || [])[currentAddress_y];
-		                if (!point)
-		                    break;
-		                if (point.fill !== fill)
-		                    break;
-		                fill_arr.push(point);
-		            }
-		            if (fill_arr.length === judge_fill_count - 1) {
-		                // 已连成n -1后，在判断两头是否有空位，两头都有空位则为赢
-		                var _a = fill_arr[0].address, start_x = _a[0], start_y = _a[1];
-		                var _b = fill_arr[fill_arr.length - 1].address, end_x = _b[0], end_y = _b[1];
-		                var ponitS = (_this.points[start_x - 1] || [])[start_y + 1];
-		                var pointE = (_this.points[end_x + 1] || [])[end_y - 1];
-		                // 两头都有空位则为赢
-		                if (ponitS && pointE && !ponitS.fill && !pointE.fill) {
-		                    return true;
-		                }
-		                return false;
-		            }
-		            if (fill_arr.length >= judge_fill_count) {
-		                return true;
-		            }
-		        };
-		        // 开始游戏
-		        this.start = function () {
-		            // 设置画布点击事件
-		            _this.set_click_event();
-		        };
-		        this.end = function () {
-		            setTimeout(function () {
-		                var win_account = _this.next_drop === "black" ? "黑子" : "白子";
-		                var lose_account = _this.next_drop === "black" ? "白子" : "黑子";
-		                alert("".concat(win_account, " \u83B7\u80DC, ").concat(lose_account, " \u8BF4\u8BDD\uFF01"));
-		            }, 10);
-		        };
-		        Object.assign(this.config, config);
-		        if (!canvasElement)
-		            return;
-		        this.canvas = canvasElement;
-		        this.ctx = this.canvas.getContext("2d");
-		        this.init();
-		    }
-		    // 初始配置
-		    // 每个棋子点，鼠标点击的判定生效区间差值 如：20，20的棋子点 生效区间为：12，12， 28，12， 12，28， 28，28
-		    Game.drop_area_size = 16;
-		    // 棋盘网格大小
-		    Game.grid_size = 40;
-		    return Game;
-		}());
-		const game = new Game(document.getElementById('game-canvas'), {
-			size: 16,
-			judge_fill_count: 5,
-			first: 'white'
-		});
-		game.start();
-	</script>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小游戏合集 · Games</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=Ma+Shan+Zheng&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #15121b;
+        --panel: #211b2c;
+        --panel-2: #2a2336;
+        --border: #38304a;
+        --text: #ece6f0;
+        --dim: #9a90a8;
+        --gold: #d4b06a;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: "Noto Serif SC", "PingFang SC", "Microsoft YaHei", serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        background-image:
+          radial-gradient(ellipse at 18% 0%, rgba(212, 176, 106, 0.10), transparent 50%),
+          radial-gradient(ellipse at 85% 100%, rgba(158, 59, 46, 0.12), transparent 55%),
+          radial-gradient(ellipse at 50% 50%, rgba(126, 87, 194, 0.06), transparent 60%);
+      }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 64px 24px 56px; }
+
+      header.hero { text-align: center; margin-bottom: 52px; }
+      .hero .seal {
+        display: inline-grid; place-items: center;
+        width: 68px; height: 68px;
+        background: linear-gradient(135deg, #9e3b2e, #b04a3a);
+        color: #fbf6e8; font-family: "Ma Shan Zheng", serif; font-size: 38px;
+        border-radius: 10px; transform: rotate(-4deg);
+        box-shadow: 0 8px 24px rgba(158, 59, 46, 0.45), inset 0 0 0 2px rgba(255, 255, 255, 0.12);
+        margin-bottom: 20px;
+      }
+      .hero h1 { font-family: "Ma Shan Zheng", serif; font-size: 46px; margin: 0 0 10px; letter-spacing: 6px; }
+      .hero p { color: var(--dim); margin: 0; font-size: 14px; letter-spacing: 3px; }
+      .hero p b { color: var(--gold); font-weight: 600; }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(286px, 1fr));
+        gap: 24px;
+      }
+      .card {
+        position: relative; display: block;
+        background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+        overflow: hidden;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      }
+      .card:hover { transform: translateY(-5px); border-color: var(--accent); box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45); }
+      .card:hover .banner .emblem { transform: scale(1.08) rotate(-3deg); }
+      .card-link { position: absolute; inset: 0; z-index: 1; }
+
+      .banner {
+        height: 124px; position: relative; overflow: hidden;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        display: grid; place-items: center;
+      }
+      .banner::before {
+        content: ""; position: absolute; inset: 0;
+        background-image:
+          repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.06) 0 8px, transparent 8px 18px),
+          radial-gradient(circle at 28% 28%, rgba(255, 255, 255, 0.22), transparent 60%);
+      }
+      .banner .emblem {
+        width: 76px; height: 76px; border-radius: 50%;
+        background: rgba(0, 0, 0, 0.22); border: 2px solid rgba(255, 255, 255, 0.55);
+        display: grid; place-items: center; position: relative; z-index: 1;
+        font-family: "Ma Shan Zheng", serif; font-size: 42px; color: #fff;
+        transition: transform 0.25s ease;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      }
+
+      .body { padding: 18px 20px 20px; position: relative; }
+      .title { font-family: "Ma Shan Zheng", serif; font-size: 25px; line-height: 1.1; }
+      .sub { font-size: 11px; color: var(--dim); letter-spacing: 3px; margin: 3px 0 11px; }
+      .desc { font-size: 13px; color: #c8c0d2; line-height: 1.75; min-height: 46px; }
+      .tags { margin-top: 13px; display: flex; gap: 6px; flex-wrap: wrap; }
+      .tags span {
+        font-size: 11px; color: var(--accent-2);
+        border: 1px solid var(--accent); border-radius: 12px; padding: 2px 10px; opacity: 0.9;
+      }
+      .extra { position: relative; z-index: 2; margin-top: 12px; font-size: 12px; color: var(--dim); text-decoration: none; display: inline-block; }
+      .extra:hover { color: var(--accent-2); }
+      .arrow { position: absolute; right: 18px; bottom: 16px; font-size: 18px; color: var(--accent-2); opacity: 0.6; transition: transform 0.2s; }
+      .card:hover .arrow { transform: translateX(4px); opacity: 1; }
+
+      footer { text-align: center; margin-top: 56px; color: var(--dim); font-size: 12px; letter-spacing: 1px; }
+      footer a { color: var(--gold); text-decoration: none; }
+
+      @media (max-width: 560px) {
+        .wrap { padding: 44px 16px 40px; }
+        .hero h1 { font-size: 36px; }
+        .grid { grid-template-columns: 1fr; gap: 18px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <div class="seal">戏</div>
+        <h1>小游戏合集</h1>
+        <p>Canvas · TypeScript · 共 <b>6</b> 款自制小游戏</p>
+      </header>
+
+      <div class="grid">
+        <div class="card" style="--accent:#b5832d;--accent-2:#d8a85a;">
+          <a class="card-link" href="games/gobang/game.html"></a>
+          <div class="banner"><span class="emblem">棋</span></div>
+          <div class="body">
+            <div class="title">n 子棋</div>
+            <div class="sub">GOMOKU</div>
+            <div class="desc">五子棋 / 六子棋，支持人人对战与大模型人机对战，含走子记录、AI 思考复盘、对局导入导出。</div>
+            <div class="tags"><span>Canvas</span><span>人机对战</span><span>复盘</span></div>
+            <span class="arrow">-></span>
+          </div>
+        </div>
+
+        <div class="card" style="--accent:#2f8f5b;--accent-2:#4dc878;">
+          <a class="card-link" href="games/snake/game.html"></a>
+          <div class="banner"><span class="emblem">蛇</span></div>
+          <div class="body">
+            <div class="title">贪吃蛇</div>
+            <div class="sub">SNAKE</div>
+            <div class="desc">经典贪吃蛇，方向键操控，吃食成长，撞墙撞身即终。极简 Canvas 实现。</div>
+            <div class="tags"><span>Canvas</span><span>休闲</span></div>
+            <span class="arrow">-></span>
+          </div>
+        </div>
+
+        <div class="card" style="--accent:#6b3fa0;--accent-2:#9d6fd4;">
+          <a class="card-link" href="games/life/game.html"></a>
+          <div class="banner"><span class="emblem">生</span></div>
+          <div class="body">
+            <div class="title">人生模拟器</div>
+            <div class="sub">LIFE · PIXEL</div>
+            <div class="desc">像素人生模拟：掷初始属性、选天赋，逐年经历事件并抉择，终获 S~F 人生评级与称号。</div>
+            <div class="tags"><span>像素</span><span>模拟</span><span>文字</span></div>
+            <span class="arrow">-></span>
+          </div>
+        </div>
+
+        <div class="card" style="--accent:#9e3b2e;--accent-2:#c75548;">
+          <a class="card-link" href="games/lineage/game.html"></a>
+          <div class="banner"><span class="emblem">族</span></div>
+          <div class="body">
+            <div class="title">族谱·传家</div>
+            <div class="sub">LINEAGE</div>
+            <div class="desc">族谱式家族传承：世代婚配繁衍，收支经济，树状族谱可视化，事件弹窗抉择，终卷评级。</div>
+            <div class="tags"><span>族谱</span><span>模拟</span><span>经济</span></div>
+            <a class="extra" href="games/lineage/mobile.html">📱 手机版</a>
+            <span class="arrow">-></span>
+          </div>
+        </div>
+
+        <div class="card" style="--accent:#c8a02e;--accent-2:#e8c563;">
+          <a class="card-link" href="games/YuGiOh/game.html"></a>
+          <div class="banner"><span class="emblem">决</span></div>
+          <div class="body">
+            <div class="title">游戏王·决斗对战</div>
+            <div class="sub">YU-GI-OH</div>
+            <div class="desc">经典规则决斗：召唤/祭品/翻转/特召，战斗与连锁，魔法陷阱反击，事件订阅式引擎，精选约50张卡。</div>
+            <div class="tags"><span>卡牌</span><span>对战</span><span>事件驱动</span></div>
+            <span class="arrow">-></span>
+          </div>
+        </div>
+
+        <div class="card" style="--accent:#3d6aa8;--accent-2:#7ba9dd;">
+          <a class="card-link" href="games/YuGiOh/game3d.html"></a>
+          <div class="banner"><span class="emblem">维</span></div>
+          <div class="body">
+            <div class="title">游戏王 · 3D 决斗</div>
+            <div class="sub">YU-GI-OH · 3D</div>
+            <div class="desc">Three.js 打造的 3D 决斗舞台：怪兽立体召唤与战斗，拖拽旋转视角，点击卡牌查看与操作，规则引擎与 2D 版同源。</div>
+            <div class="tags"><span>Three.js</span><span>3D</span><span>对战</span></div>
+            <span class="arrow">-></span>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        小游戏合集 · 源码与说明见 <a href="Readme.md">Readme.md</a>
+      </footer>
+    </div>
+  </body>
 </html>

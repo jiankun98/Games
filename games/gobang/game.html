@@ -1,0 +1,1616 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>五子棋 · 人机对战与复盘</title>
+    <script src="./index.js"></script>
+    <style>
+      :root {
+        --bg: #1b1f26;
+        --panel: #242a33;
+        --panel-2: #2d343e;
+        --border: #3a424f;
+        --text: #e6e9ef;
+        --text-dim: #9aa3b0;
+        --accent: #4a9eff;
+        --ok: #43b581;
+        --warn: #e5a93a;
+        --err: #e5484d;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Microsoft YaHei", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      header {
+        height: 52px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 18px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+      }
+      header .title {
+        font-size: 16px;
+        font-weight: 600;
+      }
+      header .title b {
+        color: var(--accent);
+      }
+      .status {
+        font-size: 13px;
+        color: var(--text-dim);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .badge {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 12px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        min-width: 76px;
+        text-align: center;
+      }
+      .badge.review {
+        color: var(--warn);
+        border-color: var(--warn);
+      }
+      .badge.thinking {
+        color: var(--accent);
+        border-color: var(--accent);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.45;
+        }
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+      }
+      .board-wrap {
+        flex: 1;
+        min-width: 0;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        overflow: auto;
+        background: #161a20;
+      }
+      #board {
+        background: #e3cdb0;
+        border-radius: 6px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+        cursor: pointer;
+      }
+      #board.flash {
+        animation: flash 0.7s ease-out;
+      }
+      @keyframes flash {
+        0% {
+          filter: brightness(1.9) saturate(1.3);
+          transform: scale(1.02);
+        }
+        100% {
+          filter: brightness(1) saturate(1);
+          transform: scale(1);
+        }
+      }
+
+      .board-indicator {
+        position: absolute;
+        top: 30px;
+        right: 30px;
+        display: none;
+        align-items: center;
+        gap: 8px;
+        background: rgba(20, 22, 28, 0.88);
+        border: 1px solid var(--accent);
+        color: #fff;
+        padding: 6px 13px;
+        border-radius: 16px;
+        font-size: 12.5px;
+        z-index: 5;
+        pointer-events: none;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      .board-indicator.show {
+        display: flex;
+      }
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        flex-shrink: 0;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      aside {
+        width: 390px;
+        flex-shrink: 0;
+        background: var(--panel);
+        border-left: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      .tab {
+        flex: 1;
+        padding: 10px;
+        text-align: center;
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--text-dim);
+        border-bottom: 2px solid transparent;
+      }
+      .tab.active {
+        color: var(--text);
+        border-bottom-color: var(--accent);
+      }
+      .slot-tabs {
+        display: flex;
+        margin-bottom: 12px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .slot-tab {
+        flex: 1;
+        padding: 8px;
+        text-align: center;
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--text-dim);
+        background: var(--panel-2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+      .slot-tab.active {
+        color: #fff;
+        background: var(--accent);
+      }
+      .slot-tab .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 1px solid #000;
+      }
+      .slot-tab.black .dot {
+        background: #111;
+      }
+      .slot-tab.white .dot {
+        background: #f6f3ec;
+      }
+      .pane {
+        display: none;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+      }
+      .pane.active {
+        display: flex;
+      }
+      .pane-scroll {
+        flex: 0 1 auto;
+        overflow-y: auto;
+        padding: 14px;
+        min-height: 0;
+      }
+      .pane-grow {
+        flex: 1 1 160px;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        padding: 0 14px 14px;
+      }
+
+      .field {
+        margin-bottom: 10px;
+      }
+      .field label {
+        display: block;
+        font-size: 12px;
+        color: var(--text-dim);
+        margin-bottom: 4px;
+      }
+      .field input,
+      .field select,
+      .field textarea {
+        width: 100%;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 7px 10px;
+        font-size: 13px;
+        outline: none;
+      }
+      .field input:focus,
+      .field select:focus,
+      .field textarea:focus {
+        border-color: var(--accent);
+      }
+      .field textarea {
+        resize: vertical;
+        min-height: 50px;
+        font-family: inherit;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .row > .field {
+        flex: 1;
+      }
+
+      button.btn {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button.btn:hover {
+        filter: brightness(1.1);
+      }
+      button.btn.ghost {
+        background: var(--panel-2);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      button.btn.sm {
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+      .btn-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .replay-bar {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin: 10px 0;
+      }
+      .replay-bar .step-info {
+        flex: 1;
+        text-align: center;
+        font-size: 12px;
+        color: var(--text-dim);
+      }
+      .replay-bar button {
+        flex: 0 0 auto;
+      }
+
+      .moves-wrap {
+        max-height: 132px;
+        overflow-y: auto;
+        margin-top: 4px;
+      }
+      .moves {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 8px;
+        border-radius: 12px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        font-size: 12px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .chip:hover {
+        border-color: var(--accent);
+      }
+      .chip.selected {
+        border-color: var(--accent);
+        background: rgba(74, 158, 255, 0.16);
+      }
+      .chip .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        border: 1px solid #000;
+      }
+      .chip .dot.black {
+        background: #111;
+      }
+      .chip .dot.white {
+        background: #f6f3ec;
+      }
+      .chip .tag {
+        font-size: 9px;
+        padding: 0 4px;
+        border-radius: 6px;
+      }
+      .chip .tag.ai {
+        background: rgba(74, 158, 255, 0.2);
+        color: var(--accent);
+      }
+      .chip .tag.human {
+        background: rgba(154, 163, 176, 0.2);
+        color: var(--text-dim);
+      }
+      .chip.pending {
+        border-style: dashed;
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .chip.pending .spinner {
+        width: 11px;
+        height: 11px;
+        border-width: 2px;
+      }
+      .chip.pending .dot {
+        opacity: 0.6;
+      }
+      .move-count {
+        font-size: 12px;
+        color: var(--text-dim);
+        margin-bottom: 4px;
+        display: block;
+      }
+
+      .thinking-label {
+        font-size: 12px;
+        color: var(--text-dim);
+        margin-bottom: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .thinking-label .dim {
+        color: var(--accent);
+        flex: 1;
+        text-align: right;
+      }
+      .view-toggle {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .vt-btn {
+        background: var(--panel-2);
+        color: var(--text-dim);
+        border: none;
+        padding: 3px 9px;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      .vt-btn.active {
+        background: var(--accent);
+        color: #fff;
+      }
+      .thinking-box {
+        flex: 1;
+        min-height: 100px;
+        background: #11151b;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px;
+        font-size: 12.5px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        overflow-y: auto;
+        color: #cdd3dc;
+        font-family: "SF Mono", Consolas, "Microsoft YaHei", monospace;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+      }
+      .thinking-box.empty {
+        color: var(--text-dim);
+        font-style: italic;
+      }
+      .thinking-box.thinking {
+        border-color: var(--accent);
+        animation: glow 1.5s ease-in-out infinite;
+      }
+      @keyframes glow {
+        0%,
+        100% {
+          box-shadow:
+            0 0 0 1px var(--accent),
+            0 0 8px rgba(74, 158, 255, 0.2);
+        }
+        50% {
+          box-shadow:
+            0 0 0 1px var(--accent),
+            0 0 20px rgba(74, 158, 255, 0.5);
+        }
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(20, 22, 28, 0.95);
+        color: #fff;
+        padding: 9px 16px;
+        border-radius: 18px;
+        font-size: 13px;
+        border: 1px solid var(--border);
+        opacity: 0;
+        transition:
+          opacity 0.25s,
+          transform 0.25s;
+        z-index: 50;
+        pointer-events: none;
+        max-width: 80vw;
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-4px);
+      }
+      .hint {
+        font-size: 11.5px;
+        color: var(--text-dim);
+        line-height: 1.5;
+        margin-top: 4px;
+      }
+      code {
+        background: var(--panel-2);
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-size: 12px;
+      }
+      .checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        margin-bottom: 10px;
+      }
+      .checkbox input {
+        width: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="title"><a href="../../index.html" style="color:var(--accent);text-decoration:none;font-size:13px;margin-right:14px;opacity:.85;">← 主页</a>五子棋 · <b>人机对战</b> &amp; 复盘</div>
+      <div class="status">
+        <span id="turn-badge" class="badge">黑方行棋</span>
+        <span id="status">就绪</span>
+      </div>
+    </header>
+
+    <main>
+      <div class="board-wrap">
+        <canvas id="board"></canvas>
+        <div class="board-indicator" id="overlay">
+          <div class="spinner"></div>
+          <span id="overlay-label">AI 思考中</span>
+        </div>
+      </div>
+
+      <aside>
+        <div class="tabs">
+          <div class="tab active" data-tab="game">对局</div>
+          <div class="tab" data-tab="ai">大模型</div>
+        </div>
+
+        <!-- 对局 -->
+        <div class="pane active" data-pane="game">
+          <div class="pane-scroll">
+            <div class="row">
+              <div class="field">
+                <label>对战模式</label>
+                <select id="mode">
+                  <option value="pvp">人人对战</option>
+                  <option value="pvc" selected>人机对战</option>
+                  <option value="ava">AI 对战</option>
+                </select>
+              </div>
+              <div class="field" id="ai-color-field">
+                <label>AI 执子</label>
+                <select id="ai-color">
+                  <option value="white" selected>白（后手）</option>
+                  <option value="black">黑（先手）</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label>先手</label
+                ><select id="first">
+                  <option value="black" selected>黑</option>
+                  <option value="white">白</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>棋盘</label
+                ><select id="size">
+                  <option value="9">9×9</option>
+                  <option value="13">13×13</option>
+                  <option value="15" selected>15×15</option>
+                  <option value="19">19×19</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>连子</label
+                ><select id="n">
+                  <option value="4">4</option>
+                  <option value="5" selected>5</option>
+                  <option value="6">6</option>
+                </select>
+              </div>
+            </div>
+            <div class="field" id="delay-field" style="display: none">
+              <label>AI 行棋间隔 (毫秒)</label>
+              <input
+                id="ai-delay"
+                type="number"
+                value="700"
+                min="0"
+                step="100"
+              />
+            </div>
+            <div class="btn-row">
+              <button class="btn" id="new-game">开始新对局</button>
+              <button class="btn ghost" id="undo">悔棋</button>
+              <button class="btn ghost" id="pause-btn" style="display: none">
+                暂停
+              </button>
+            </div>
+
+            <div class="replay-bar">
+              <button class="btn ghost sm" id="r-first" title="开局">⏮</button>
+              <button class="btn ghost sm" id="r-prev" title="上一手">◀</button>
+              <button class="btn sm" id="r-play" title="自动播放">▶</button>
+              <button class="btn ghost sm" id="r-next" title="下一手">▶</button>
+              <button class="btn ghost sm" id="r-last" title="终局">⏭</button>
+              <span class="step-info" id="step-info">-</span>
+              <button class="btn ghost sm" id="r-live" title="返回实时">
+                实时
+              </button>
+            </div>
+            <div class="btn-row" style="margin-bottom: 6px">
+              <button class="btn ghost sm" id="export-btn">导出对局</button>
+              <button class="btn ghost sm" id="import-btn">导入对局</button>
+              <input
+                id="import-file"
+                type="file"
+                accept="application/json"
+                style="display: none"
+              />
+            </div>
+            <span class="move-count" id="move-count">共 0 手</span>
+            <div class="moves-wrap"><div class="moves" id="history"></div></div>
+          </div>
+
+          <div class="pane-grow">
+            <div class="thinking-label">
+              <div class="view-toggle">
+                <button class="vt-btn active" data-view="reasoning">
+                  思考过程
+                </button>
+                <button class="vt-btn" data-view="output">输出结果</button>
+              </div>
+              <span class="dim" id="thinking-title"></span>
+            </div>
+            <div class="thinking-box empty" id="thinking">
+              点击下方走子记录查看该步思考
+            </div>
+          </div>
+        </div>
+
+        <!-- 大模型 -->
+        <div class="pane" data-pane="ai">
+          <div class="pane-scroll">
+            <div class="slot-tabs">
+              <div class="slot-tab black active" data-slot="black">
+                <span class="dot"></span>黑方模型
+              </div>
+              <div class="slot-tab white" data-slot="white">
+                <span class="dot"></span>白方模型
+              </div>
+            </div>
+            <div class="field">
+              <label>服务商预设</label
+              ><select id="preset"></select>
+            </div>
+            <div class="field">
+              <label>Base URL（OpenAI 兼容）</label
+              ><input
+                id="base-url"
+                type="text"
+                placeholder="https://api.deepseek.com/v1"
+              />
+            </div>
+            <div class="field">
+              <label>API Key</label
+              ><input id="api-key" type="password" placeholder="sk-..." />
+            </div>
+            <div class="row">
+              <div class="field">
+                <label>模型</label
+                ><input id="model" type="text" placeholder="deepseek-chat" />
+              </div>
+              <div class="field" style="max-width: 80px">
+                <label>温度</label
+                ><input
+                  id="temperature"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="2"
+                  value="0.6"
+                />
+              </div>
+              <div class="field" style="max-width: 110px">
+                <label>最大 tokens</label
+                ><input
+                  id="max-tokens"
+                  type="number"
+                  step="4096"
+                  min="256"
+                  value="128000"
+                />
+              </div>
+            </div>
+            <div class="field">
+              <label>调用方式</label
+              ><select id="call-mode">
+                <option value="proxy" selected>
+                  代理（经本地服务 /api/llm）
+                </option>
+                <option value="direct">直连（浏览器直接请求）</option>
+              </select>
+            </div>
+            <label class="checkbox"
+              ><input id="json-mode" type="checkbox" checked /> JSON
+              结构化输出（强制返回 {"thinking","move"}，解析更可靠）</label
+            >
+            <div class="field">
+              <label>额外提示词（可选）</label
+              ><textarea
+                id="custom-prompt"
+                placeholder="例如：积极进攻、优先形成活三"
+              ></textarea>
+            </div>
+            <div class="btn-row">
+              <button class="btn" id="test-btn">测试连接</button>
+              <button class="btn ghost" id="save-btn">保存配置</button>
+              <button class="btn ghost" id="copy-btn">复制到另一色</button>
+            </div>
+            <p class="hint" style="margin-top: 12px">
+              为黑方与白方分别配置模型，AI
+              对战时两方可用不同模型对决；人机对战时 AI
+              使用其执子颜色对应的配置。代理模式请先运行
+              <code>node run/game.js</code>；密钥仅存本地 localStorage。
+            </p>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let selectedIdx = null; // null=跟随实时（显示逐步输出/最新手）；数字=查看该步
+      let liveThinking = ""; // 当前正在思考的逐步输出
+      let liveColor = null; // 当前思考方颜色（占位步用）
+      let pending = false; // 是否存在占位步（AI 思考中未落子）
+      let panelView = "reasoning"; // 思考面板视图：reasoning=思考过程 / output=输出结果
+      let playTimer = null;
+      let toastTimer = null;
+
+      const PRESETS = [
+        {
+          name: "DeepSeek",
+          baseUrl: "https://api.deepseek.com/v1",
+          model: "deepseek-chat",
+        },
+        {
+          name: "Moonshot / Kimi",
+          baseUrl: "https://api.moonshot.cn/v1",
+          model: "moonshot-v1-8k",
+        },
+        {
+          name: "通义 Qwen（DashScope）",
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          model: "qwen-plus",
+        },
+        {
+          name: "智谱 GLM",
+          baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+          model: "glm-4-flash",
+        },
+        {
+          name: "OpenAI",
+          baseUrl: "https://api.openai.com/v1",
+          model: "gpt-4o-mini",
+        },
+        {
+          name: "Ollama（本地）",
+          baseUrl: "http://localhost:11434/v1",
+          model: "qwen2.5:7b",
+        },
+        { name: "自定义", baseUrl: "", model: "" },
+      ];
+
+      // ---------- 配置存取（黑方 / 白方各一套） ----------
+      let editingSlot = "black";
+      const DEFAULT_CFG = {
+        preset: "DeepSeek",
+        baseUrl: "https://api.deepseek.com/v1",
+        apiKey: "",
+        model: "deepseek-chat",
+        temperature: 0.6,
+        maxTokens: 128000,
+        callMode: "proxy",
+        jsonMode: true,
+        customPrompt: "",
+      };
+
+      function loadAllCfg() {
+        let raw;
+        try {
+          raw = JSON.parse(localStorage.getItem("gobang.llm") || "{}");
+        } catch {
+          raw = {};
+        }
+        if (raw && raw.black) {
+          // 迁移：旧默认 4096 升级到 128000，防止思考被截断
+          for (const slot of ["black", "white"]) {
+            if (
+              raw[slot] &&
+              (raw[slot].maxTokens === undefined ||
+                raw[slot].maxTokens === 4096)
+            ) {
+              raw[slot].maxTokens = 128000;
+            }
+          }
+          return raw;
+        }
+        if (raw && raw.baseUrl)
+          return {
+            black: { ...raw, maxTokens: 128000 },
+            white: { ...raw, maxTokens: 128000 },
+          }; // 旧的单配置迁移
+        return { black: { ...DEFAULT_CFG }, white: { ...DEFAULT_CFG } };
+      }
+      function getCfg(color) {
+        const all = loadAllCfg();
+        return all[color] || { ...DEFAULT_CFG };
+      }
+      function currentLlm() {
+        return {
+          preset: $("preset").value,
+          baseUrl: $("base-url").value.trim(),
+          apiKey: $("api-key").value.trim(),
+          model: $("model").value.trim(),
+          temperature: parseFloat($("temperature").value) || 0.6,
+          maxTokens: parseInt($("max-tokens").value, 10) || 128000,
+          callMode: $("call-mode").value,
+          jsonMode: $("json-mode").checked,
+          customPrompt: $("custom-prompt").value.trim(),
+        };
+      }
+      function currentSettings() {
+        return {
+          mode: $("mode").value,
+          ai_color: $("ai-color").value,
+          size: parseInt($("size").value, 10),
+          n: parseInt($("n").value, 10),
+          first: $("first").value,
+          ai_delay: parseInt($("ai-delay").value, 10) || 700,
+        };
+      }
+      function saveSlot(slot) {
+        const all = loadAllCfg();
+        all[slot] = currentLlm();
+        localStorage.setItem("gobang.llm", JSON.stringify(all));
+      }
+      function saveCfg() {
+        saveSlot(editingSlot);
+        toast((editingSlot === "black" ? "黑方" : "白方") + "模型已保存");
+      }
+      function switchSlot(slot) {
+        saveSlot(editingSlot); // 切换前先把当前表单存下，避免丢失编辑
+        editingSlot = slot;
+        document
+          .querySelectorAll(".slot-tab")
+          .forEach((t) =>
+            t.classList.toggle("active", t.dataset.slot === slot),
+          );
+        fillFormFromCfg(slot);
+      }
+      function copyToOther() {
+        saveSlot(editingSlot);
+        const other = editingSlot === "black" ? "white" : "black";
+        const all = loadAllCfg();
+        all[other] = { ...all[editingSlot] };
+        localStorage.setItem("gobang.llm", JSON.stringify(all));
+        toast("已复制到" + (other === "black" ? "黑方" : "白方") + "模型");
+      }
+      function applyPreset() {
+        const p = PRESETS[$("preset").selectedIndex];
+        if (p.name !== "自定义") {
+          $("base-url").value = p.baseUrl;
+          $("model").value = p.model;
+        }
+      }
+      function fillFormFromCfg(slot) {
+        const cfg = getCfg(slot);
+        const idx = Math.max(
+          0,
+          PRESETS.findIndex((p) => p.name === cfg.preset),
+        );
+        $("preset").selectedIndex = idx;
+        $("base-url").value = cfg.baseUrl || PRESETS[idx].baseUrl || "";
+        $("model").value = cfg.model || PRESETS[idx].model || "";
+        $("api-key").value = cfg.apiKey || "";
+        $("temperature").value = cfg.temperature ?? 0.6;
+        $("max-tokens").value = cfg.maxTokens ?? 128000;
+        $("call-mode").value = cfg.callMode || "proxy";
+        $("json-mode").checked = cfg.jsonMode !== false;
+        $("custom-prompt").value = cfg.customPrompt || "";
+      }
+
+      // ---------- 提示词与解析 ----------
+      function buildMessages(ctx, cfg) {
+        const colorText = ctx.color === "black" ? "黑（X）" : "白（O）";
+        let sys;
+        if (cfg.jsonMode) {
+          sys = `你是五子棋（连珠）高手。棋盘 ${ctx.size}×${ctx.size}，连成 ${ctx.n} 子即胜。X=黑，O=白，.=空。
+坐标使用 (列 i, 行 j)，均从 0 开始，范围 0..${ctx.size - 1}；i 为横向列号、j 为纵向行号。切勿使用 1 起算。
+用户消息同时提供文本网格与二维数组 board[j][i]（j=行、i=列，坐标(i,j) 对应 board[j][i]）。判断某格是否被占用、是否为空，一律以数组为准，避免数错列。
+当前轮到你执 ${colorText}。
+
+【快速决策原则】按优先级判断，选择最优落子：
+1. 胜：己方能否一步连成 ${ctx.n} 子？能则下。
+2. 堵：对手能否一步连成 ${ctx.n} 子？有则必须堵。
+3. 攻：己方能否一手形成无遮挡的 ${ctx.n - 1} 连（两端皆空）？能则下。
+4. 防：对手是否有无遮挡的 ${ctx.n - 2} 连？有则必须堵其一端。
+5. 发展：选择能延伸己方连线、且限制对方发展的交叉点。
+
+【思考要求】
+落子前必须对棋盘做全面分析，thinking 字段按以下顺序逐项排查，切勿跳过、切勿凭空想象不存在的棋子：
+1. 对手威胁排查：逐一检查对手每个连子组（横、竖、两条斜线四个方向）的形态——是否已成 ${ctx.n - 1} 连（缺一即胜，必须立即堵其一端）、是否为活三（${ctx.n - 2} 连且两端皆空，须堵一端）、眠三、活二等；每处给出连子坐标与两端空点。
+2. 己方机会排查：同样检查己方每个连子组——能否一手连成 ${ctx.n} 子获胜、能否形成活四（两端皆空的 ${ctx.n - 1} 连）/冲四、能否形成活三。
+3. 关键判断（比速度）：己方能否一手成五？对手能否一手成五？己方能否形成活四？对手能否形成活四？对手是否有活三而己方无更快胜势（若有则必须先堵）？
+4. 决策：综合上述，选择兼顾"防守最强威胁"与"发展己方"的落子。
+5. 落子：复述坐标及作用。
+排查时每个格子是否被占用一律以二维数组 board[j][i] 为准核对，不要凭记忆或猜测；尤其要确认所声称"威胁"的连子与两端点确实存在、且颜色正确（X=黑/O=白），避免把对方棋子算进己方连线或反之。分析求全面准确，不必刻意精简，但不要无意义重复。
+
+【输出格式】
+你必须且只能返回如下 JSON 对象，不要输出任何其他文本或 Markdown 代码块：
+{"move": [列i, 行j], "thinking": "..."}
+move 必须是包含两个整数的数组（如 [7, 7]），不能是字符串，不能越界，不能落在已有棋子的位置。落子前请核对目标在棋盘上为 "."。回答必须使用中文。
+注意：思考过程（若模型有内部推理）中不要输出 JSON 或 move 字段，只在最终回答输出一次 JSON；最终 move 必须与 thinking 中得出的结论一致，切勿中途改主意。${cfg.customPrompt ? "\n\n额外要求：" + cfg.customPrompt : ""}`;
+        } else {
+          sys = `你是五子棋（连珠）高手。棋盘 ${ctx.size}×${ctx.size}，连成 ${ctx.n} 子即胜。X=黑，O=白，.=空。
+坐标 (列 i, 行 j)，从 0 开始，范围 0..${ctx.size - 1}；i 为横向、j 为纵向。当前轮到你执${colorText}。
+请先简短分析最大威胁，然后在最后一行单独输出落子，格式严格为：MOVE: i j
+只能选择空位。回答必须使用中文。${cfg.customPrompt ? "\n\n额外要求：" + cfg.customPrompt : ""}`;
+        }
+
+        let user = `当前棋盘（文本网格，列号 i 在首行、行号 j 在首列）：
+${ctx.board_text}
+
+当前棋盘（二维数组 board[j][i]，j=行(纵向)、i=列(横向)；坐标(列i,行j) 对应 board[j][i]；X=黑 O=白 .=空）：
+${JSON.stringify(ctx.board_array)}
+
+已有走子：${ctx.moves_text || "（无，请你开局）"}`;
+        if (ctx.correction) user += `\n\n${ctx.correction}`;
+        user += cfg.jsonMode
+          ? `\n\n请返回 JSON。`
+          : `\n\n请给出你的落子（MOVE: i j）。`;
+
+        return [
+          { role: "system", content: sys },
+          { role: "user", content: user },
+        ];
+      }
+
+      function normalizeMove(mv) {
+        if (Array.isArray(mv) && mv.length >= 2) {
+          const a = Number(mv[0]),
+            b = Number(mv[1]);
+          if (Number.isInteger(a) && Number.isInteger(b)) return [a, b];
+        }
+        if (mv && typeof mv === "object") {
+          // 兼容 {i,j} / {x,y} / {col,row} / {column,row} 等对象写法
+          const a = Number(mv.i ?? mv.x ?? mv.col ?? mv.column);
+          const b = Number(mv.j ?? mv.y ?? mv.row ?? mv.r);
+          if (Number.isInteger(a) && Number.isInteger(b)) return [a, b];
+        }
+        if (typeof mv === "string") {
+          const mm = mv.match(/(-?\d+)\D+(-?\d+)/);
+          if (mm) return [parseInt(mm[1], 10), parseInt(mm[2], 10)];
+        }
+        return null;
+      }
+      function parseJsonResult(raw) {
+        if (!raw) return { thinking: "", move: null };
+        const tries = [];
+        try {
+          tries.push(JSON.parse(raw));
+        } catch (e) {}
+        const m = raw.match(/\{[\s\S]*\}/);
+        if (m) {
+          try {
+            tries.push(JSON.parse(m[0]));
+          } catch (e) {}
+        }
+        for (const j of tries) {
+          if (j && typeof j === "object") {
+            const mv = normalizeMove(j.move);
+            if (mv) return { thinking: j.thinking || "", move: mv };
+          }
+        }
+        // JSON 未闭合/被截断：直接从文本抠 move（move 放在 JSON 首部时即便截断也能拿到）
+        const mvRegex = raw.match(
+          /"move"\s*:\s*\[\s*(-?\d+)\s*,\s*(-?\d+)\s*\]/i,
+        );
+        if (mvRegex)
+          return {
+            thinking: extractStringField(raw, "thinking"),
+            move: [parseInt(mvRegex[1], 10), parseInt(mvRegex[2], 10)],
+          };
+        // 兜底：MOVE: 行
+        const mm = raw.match(/MOVE\s*[:：]\s*(-?\d+)\s*,?\s*(-?\d+)/i);
+        if (mm)
+          return {
+            thinking: raw,
+            move: [parseInt(mm[1], 10), parseInt(mm[2], 10)],
+          };
+        return { thinking: raw, move: null };
+      }
+      // 从（可能被截断的）JSON 文本中提取某字符串字段的值，未闭合也尽量取
+      function extractStringField(raw, field) {
+        const re = new RegExp('"' + field + '"\\s*:\\s*"');
+        const m = raw.match(re);
+        if (!m) return "";
+        let i = m.index + m[0].length,
+          out = "";
+        while (i < raw.length) {
+          const ch = raw[i];
+          if (ch === "\\") {
+            const next = raw[i + 1];
+            out +=
+              next === "n"
+                ? "\n"
+                : next === "t"
+                  ? "\t"
+                  : next === '"'
+                    ? '"'
+                    : next === "\\"
+                      ? "\\"
+                      : next || "";
+            i += 2;
+            continue;
+          }
+          if (ch === '"') break;
+          out += ch;
+          i++;
+        }
+        return out;
+      }
+      function parseMoveText(raw) {
+        if (!raw) return null;
+        const m = raw.match(/MOVE\s*[:：]\s*(\d+)\s*,?\s*(\d+)/i);
+        if (m) return [parseInt(m[1], 10), parseInt(m[2], 10)];
+        return null;
+      }
+
+      // ---------- LLM 调用 ----------
+      async function decide(ctx) {
+        const cfg = getCfg(ctx.color);
+        if (!cfg.baseUrl || !cfg.model)
+          throw new Error(
+            (ctx.color === "black" ? "黑方" : "白方") +
+              "大模型配置不完整（Base URL / 模型）",
+          );
+        const messages = buildMessages(ctx, cfg);
+        const url =
+          cfg.callMode === "proxy"
+            ? "/api/llm"
+            : cfg.baseUrl.replace(/\/+$/, "") + "/chat/completions";
+        const headers = { "Content-Type": "application/json" };
+        const body = {
+          model: cfg.model,
+          messages,
+          temperature: cfg.temperature,
+          stream: true,
+          max_tokens: cfg.maxTokens || 128000,
+          thinking: { type: "enabled" },
+          reasoning_effort: "high",
+        };
+        console.log(body);
+        if (cfg.jsonMode) body.response_format = { type: "json_object" };
+        if (cfg.callMode === "proxy") {
+          body.baseUrl = cfg.baseUrl;
+          body.apiKey = cfg.apiKey;
+        } else {
+          if (cfg.apiKey) headers["Authorization"] = "Bearer " + cfg.apiKey;
+        }
+
+        const resp = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: ctx.signal,
+        });
+        if (!resp.ok) {
+          const t = await resp.text().catch(() => "");
+          throw new Error(`HTTP ${resp.status} ${t.slice(0, 300)}`);
+        }
+
+        let reasoning = "";
+        let raw = "";
+        const emit = (delta) => {
+          if (!delta) return;
+          if (delta.reasoning_content) {
+            reasoning += delta.reasoning_content;
+            ctx.on_thinking(delta.reasoning_content);
+          }
+          if (delta.content) {
+            raw += delta.content;
+            if (!cfg.jsonMode) ctx.on_thinking(delta.content); // 文本模式：流式显示思考
+          }
+        };
+        const ct = resp.headers.get("content-type") || "";
+
+        if (ct.includes("event-stream") && resp.body && resp.body.getReader) {
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            let idx;
+            while ((idx = buf.indexOf("\n")) >= 0) {
+              const line = buf.slice(0, idx).trim();
+              buf = buf.slice(idx + 1);
+              if (!line || !line.startsWith("data:")) continue;
+              const data = line.slice(5).trim();
+              if (data === "[DONE]") continue;
+              try {
+                const j = JSON.parse(data);
+                emit(j && j.choices && j.choices[0] && j.choices[0].delta);
+              } catch (e) {}
+            }
+          }
+        } else {
+          const data = await resp.json();
+          const msg =
+            (data.choices && data.choices[0] && data.choices[0].message) || {};
+          emit({
+            reasoning_content: msg.reasoning_content,
+            content: msg.content,
+          });
+        }
+
+        // 思考过程（reasoning）与输出结果（JSON thinking）分开返回
+        let jsonThinking = "";
+        let move = null;
+        if (cfg.jsonMode) {
+          const r = parseJsonResult(raw);
+          jsonThinking = r.thinking || "";
+          move = r.move;
+        } else {
+          move = parseMoveText(raw);
+          jsonThinking = ""; // 文本模式：全部内容已在 reasoning 中流式输出
+        }
+        return { reasoning, thinking: jsonThinking, move, raw };
+      }
+
+      async function testConnection() {
+        const cfg = currentLlm();
+        if (!cfg.baseUrl || !cfg.model) {
+          toast("请填写 Base URL 与模型");
+          return;
+        }
+        const url =
+          cfg.callMode === "proxy"
+            ? "/api/llm"
+            : cfg.baseUrl.replace(/\/+$/, "") + "/chat/completions";
+        const headers = { "Content-Type": "application/json" };
+        const body = {
+          model: cfg.model,
+          messages: [{ role: "user", content: "回复 OK" }],
+          temperature: 0,
+          stream: false,
+        };
+        if (cfg.callMode === "proxy") {
+          body.baseUrl = cfg.baseUrl;
+          body.apiKey = cfg.apiKey;
+        } else {
+          if (cfg.apiKey) headers["Authorization"] = "Bearer " + cfg.apiKey;
+        }
+        toast("测试中…");
+        try {
+          const r = await fetch(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          });
+          const t = await r.text();
+          if (r.ok) toast("连接成功：" + t.slice(0, 80));
+          else toast("失败 " + r.status + "：" + t.slice(0, 120));
+        } catch (e) {
+          toast("连接出错：" + e.message);
+        }
+      }
+
+      // ---------- 渲染 ----------
+      function renderHistory() {
+        const list = $("history");
+        list.innerHTML = "";
+        const live = selectedIdx === null;
+        const lastIdx = game.history.length - 1;
+        game.history.forEach((m, idx) => {
+          const sel = live ? idx === lastIdx && !pending : idx === selectedIdx;
+          const chip = document.createElement("div");
+          chip.className = "chip" + (sel ? " selected" : "");
+          chip.dataset.idx = idx;
+          chip.innerHTML =
+            `<span class="dot ${m.color}"></span><span>${idx + 1}</span><span>(${m.address[0]},${m.address[1]})</span>` +
+            (m.by === "ai"
+              ? '<span class="tag ai">AI</span>'
+              : '<span class="tag human">人</span>');
+          chip.onclick = () => onChipClick(idx);
+          list.appendChild(chip);
+        });
+        // 占位步：AI 思考中
+        if (pending) {
+          const ph = document.createElement("div");
+          ph.className = "chip pending" + (live ? " selected" : "");
+          ph.innerHTML = `<span class="dot ${liveColor || "black"}"></span><span class="spinner"></span><span>思考中…</span>`;
+          ph.onclick = () => goLive();
+          list.appendChild(ph);
+        }
+        $("move-count").textContent = `共 ${game.history.length} 手`;
+        updateStepInfo();
+      }
+      function onChipClick(idx) {
+        // AI 对战运行中：仅查看该步思考，不改棋盘视图（棋盘保持实时）
+        if (game.config.mode === "ava" && !game.stopped && !game.winner) {
+          selectedIdx = idx;
+          renderHistory();
+          renderPanel();
+          return;
+        }
+        selectedIdx = idx;
+        game.goto_move(idx + 1);
+        renderHistory();
+        renderPanel();
+      }
+      function goLive() {
+        selectedIdx = null;
+        game.to_live();
+        renderHistory();
+        renderPanel();
+      }
+      // 思考面板：查看模式显示选中步；实时模式显示逐步输出/最新手。panelView 切换 思考过程/输出结果
+      function renderPanel() {
+        const el = $("thinking");
+        if (selectedIdx !== null) {
+          showMoveView(game.history[selectedIdx]);
+          return;
+        }
+        // 实时模式
+        if (panelView === "reasoning") {
+          if (liveThinking) {
+            el.textContent = liveThinking;
+            el.classList.remove("empty");
+            el.scrollTop = el.scrollHeight;
+            $("thinking-title").textContent = pending ? "思考中…" : "最新思考";
+          } else if (pending) {
+            el.textContent = "AI 思考中…";
+            el.classList.add("empty");
+            $("thinking-title").textContent = "思考中…";
+          } else if (game.history.length > 0) {
+            showMoveView(game.history[game.history.length - 1]);
+          } else {
+            el.textContent = "点击下方走子记录查看该步思考";
+            el.classList.add("empty");
+            $("thinking-title").textContent = "";
+          }
+        } else {
+          // 输出结果视图：展示最近一手已提交的输出
+          if (game.history.length > 0) {
+            showMoveView(game.history[game.history.length - 1]);
+          } else {
+            el.textContent = pending
+              ? "AI 思考中，输出尚未生成…"
+              : "等待 AI 输出…";
+            el.classList.add("empty");
+            $("thinking-title").textContent = "";
+          }
+        }
+      }
+      function showMoveView(m) {
+        const el = $("thinking");
+        if (!m) {
+          el.textContent = "点击下方走子记录查看该步思考";
+          el.classList.add("empty");
+          $("thinking-title").textContent = "";
+          return;
+        }
+        $("thinking-title").textContent =
+          `第 ${m.index + 1} 手 · ${m.color === "black" ? "黑" : "白"}${m.by === "ai" ? " · AI" : " · 人"}`;
+        if (m.by === "human") {
+          el.textContent = "（人类落子，无思考记录）";
+          el.classList.add("empty");
+          return;
+        }
+        el.classList.remove("empty");
+        if (panelView === "output") {
+          const parts = [];
+          if (m.thinking) parts.push(m.thinking);
+          parts.push(`落子：(${m.address[0]}, ${m.address[1]})`);
+          if (m.raw) parts.push(`\n—— 原始输出 ——\n${m.raw}`);
+          el.textContent = parts.join("\n\n");
+        } else {
+          el.textContent =
+            m.reasoning || m.thinking || "（该步无思考过程记录）";
+        }
+      }
+      function updateStepInfo() {
+        const total = game.history.length;
+        const cur = game.view_index === null ? total : game.view_index;
+        $("step-info").textContent = total === 0 ? "-" : `${cur} / ${total}`;
+      }
+      function toast(msg) {
+        const el = $("toast");
+        el.textContent = msg;
+        el.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+      }
+
+      // ---------- 复盘 ----------
+      function syncView() {
+        const cur =
+          game.view_index === null ? game.history.length : game.view_index;
+        selectedIdx = cur > 0 ? cur - 1 : null;
+        renderHistory();
+        renderPanel();
+      }
+      function togglePlay() {
+        if (playTimer) {
+          clearInterval(playTimer);
+          playTimer = null;
+          $("r-play").textContent = "▶";
+          return;
+        }
+        if (game.history.length === 0) return;
+        $("r-play").textContent = "⏸";
+        playTimer = setInterval(() => {
+          const base =
+            game.view_index === null ? game.history.length : game.view_index;
+          if (base >= game.history.length) {
+            clearInterval(playTimer);
+            playTimer = null;
+            $("r-play").textContent = "▶";
+            return;
+          }
+          game.step(1);
+          syncView();
+        }, 900);
+      }
+      function exportRecord() {
+        const data = game.export_record();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: "application/json",
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `gobang-${game.history.length}手-${Date.now()}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        toast("已导出对局记录");
+      }
+      function importRecord(file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const data = JSON.parse(reader.result);
+            if (!data || !Array.isArray(data.moves))
+              throw new Error("格式无效");
+            game.load_record(data);
+            selectedIdx = null;
+            pending = false;
+            liveThinking = "";
+            renderHistory();
+            renderPanel();
+            game.goto_move(game.history.length);
+            toast("已载入 " + game.history.length + " 手对局");
+          } catch (e) {
+            toast("导入失败：" + e.message);
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      // ---------- 对局控制 ----------
+      function newGame() {
+        if (playTimer) {
+          clearInterval(playTimer);
+          playTimer = null;
+          $("r-play").textContent = "▶";
+        }
+        const s = currentSettings();
+        game.reset({
+          size: s.size,
+          first: s.first,
+          judge_fill_count: s.n,
+          mode: s.mode,
+          ai_color: s.ai_color,
+          ai_delay: s.ai_delay,
+        });
+        selectedIdx = null;
+        pending = false;
+        liveThinking = "";
+        renderHistory();
+        renderPanel();
+        const c = $("board");
+        c.classList.remove("flash");
+        void c.offsetWidth;
+        c.classList.add("flash");
+        setTimeout(() => c.classList.remove("flash"), 750);
+        $("pause-btn").textContent = "暂停";
+        toast("新对局开始");
+        localStorage.setItem("gobang.settings", JSON.stringify(s));
+        game.maybe_trigger_ai();
+      }
+      function undo() {
+        if (game.config.mode === "ava" && !game.stopped) game.pause_ai();
+        if (game.undo()) {
+          selectedIdx = null;
+          pending = false;
+          liveThinking = "";
+          renderHistory();
+          renderPanel();
+        }
+      }
+      function togglePause() {
+        if (game.stopped) {
+          game.resume_ai();
+        } else {
+          game.pause_ai();
+        }
+      }
+
+      // ---------- 初始化 ----------
+      const callbacks = {
+        onBusy: (b) => {
+          $("overlay").classList.toggle("show", b);
+          // 仅实时模式给思考面板加呼吸光晕；查看历史时面板不闪
+          $("thinking").classList.toggle("thinking", b && selectedIdx === null);
+          if (b)
+            $("overlay-label").textContent =
+              game.config.mode === "ava" ? "AI 对战中" : "AI 思考中";
+        },
+        onThinking: (chunk, done) => {
+          if (done) {
+            if (chunk) liveThinking = chunk;
+          } else {
+            liveThinking = (liveThinking || "") + (chunk || "");
+          }
+          // 仅实时模式更新面板；查看历史时面板保持选中步，思考在占位步里累加
+          if (selectedIdx === null) renderPanel();
+        },
+        onMove: (rec) => {
+          pending = false;
+          renderHistory();
+          renderPanel(); // 实时模式显示最新手；查看模式保持选中步
+          liveThinking = "";
+        },
+        onTurn: (color) => {
+          $("turn-badge").textContent =
+            color === "black" ? "黑方行棋" : "白方行棋";
+          $("turn-badge").classList.remove("review");
+          const aiTurn =
+            (game.config.mode === "pvc" && color === game.config.ai_color) ||
+            game.config.mode === "ava";
+          $("turn-badge").classList.toggle("thinking", aiTurn && !game.winner);
+        },
+        onWin: (winner) => {
+          const w = winner === "black" ? "黑方" : "白方";
+          $("status").textContent = `${w} 获胜！`;
+          $("turn-badge").textContent = `${w} 胜`;
+          $("turn-badge").classList.remove("thinking");
+          $("overlay").classList.remove("show");
+          $("thinking").classList.remove("thinking");
+          pending = false;
+          liveThinking = "";
+          renderHistory();
+          renderPanel();
+        },
+        onStatus: (msg) => {
+          $("status").textContent = msg;
+          if (msg.includes("暂停")) $("pause-btn").textContent = "继续";
+          else if (msg.includes("继续对局"))
+            $("pause-btn").textContent = "暂停";
+          if (msg.includes("思考中")) {
+            // 新一手开始：生成占位步，重置逐步输出
+            pending = true;
+            liveThinking = "";
+            liveColor = game.next_drop;
+            renderHistory();
+            if (selectedIdx === null) renderPanel();
+            $("turn-badge").classList.add("thinking");
+          } else if (
+            pending &&
+            (msg.includes("取消") ||
+              msg.includes("失败") ||
+              msg.includes("暂停"))
+          ) {
+            // 思考被打断且未落子：清除占位步
+            pending = false;
+            liveThinking = "";
+            renderHistory();
+            if (selectedIdx === null) renderPanel();
+          }
+          $("turn-badge").classList.toggle("review", msg.includes("复盘"));
+        },
+      };
+
+      // 预设与表单
+      PRESETS.forEach((p) => {
+        const o = document.createElement("option");
+        o.value = p.name;
+        o.textContent = p.name;
+        $("preset").appendChild(o);
+      });
+      fillFormFromCfg("black");
+      // 恢复对局设置
+      try {
+        const s = JSON.parse(localStorage.getItem("gobang.settings") || "{}");
+        if (s.mode) $("mode").value = s.mode;
+        if (s.ai_color) $("ai-color").value = s.ai_color;
+        if (s.size) $("size").value = s.size;
+        if (s.n) $("n").value = s.n;
+        if (s.first) $("first").value = s.first;
+        if (s.ai_delay) $("ai-delay").value = s.ai_delay;
+      } catch (e) {}
+
+      function syncModeUi() {
+        const m = $("mode").value;
+        $("ai-color-field").style.display = m === "ava" ? "none" : "";
+        $("delay-field").style.display = m === "ava" ? "" : "none";
+        $("pause-btn").style.display = m === "ava" ? "" : "none";
+      }
+      syncModeUi();
+
+      // 实例化
+      const initial = currentSettings();
+      game = new Game(
+        $("board"),
+        {
+          size: initial.size,
+          first: initial.first,
+          judge_fill_count: initial.n,
+          mode: initial.mode,
+          ai_color: initial.ai_color,
+          ai_delay: initial.ai_delay,
+        },
+        callbacks,
+        decide,
+      );
+      game.start();
+      renderHistory();
+
+      // 事件
+      document.querySelectorAll(".tab").forEach((t) => {
+        t.onclick = () => {
+          document
+            .querySelectorAll(".tab")
+            .forEach((x) => x.classList.remove("active"));
+          document
+            .querySelectorAll(".pane")
+            .forEach((x) => x.classList.remove("active"));
+          t.classList.add("active");
+          document
+            .querySelector(`.pane[data-pane="${t.dataset.tab}"]`)
+            .classList.add("active");
+        };
+      });
+      $("mode").onchange = syncModeUi;
+      $("preset").onchange = applyPreset;
+      document.querySelectorAll(".slot-tab").forEach((t) => {
+        t.onclick = () => switchSlot(t.dataset.slot);
+      });
+      document.querySelectorAll(".vt-btn").forEach((b) => {
+        b.onclick = () => {
+          panelView = b.dataset.view;
+          document
+            .querySelectorAll(".vt-btn")
+            .forEach((x) =>
+              x.classList.toggle("active", x.dataset.view === panelView),
+            );
+          renderPanel();
+        };
+      });
+      $("new-game").onclick = newGame;
+      $("undo").onclick = undo;
+      $("pause-btn").onclick = togglePause;
+      $("test-btn").onclick = testConnection;
+      $("save-btn").onclick = saveCfg;
+      $("copy-btn").onclick = copyToOther;
+      $("r-first").onclick = () => {
+        game.goto_move(0);
+        syncView();
+      };
+      $("r-prev").onclick = () => {
+        game.step(-1);
+        syncView();
+      };
+      $("r-next").onclick = () => {
+        game.step(1);
+        syncView();
+      };
+      $("r-last").onclick = () => goLive();
+      $("r-live").onclick = () => goLive();
+      $("r-play").onclick = togglePlay;
+      $("export-btn").onclick = exportRecord;
+      $("import-btn").onclick = () => $("import-file").click();
+      $("import-file").onchange = (e) => {
+        if (e.target.files[0]) importRecord(e.target.files[0]);
+        e.target.value = "";
+      };
+    </script>
+  </body>
+</html>

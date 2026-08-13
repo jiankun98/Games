@@ -1,74 +1,20 @@
+"use strict";
 // 五子棋（n 子棋）游戏引擎
 // 支持人人对战 / 人机对战 / AI 对战；记录落子历史与 AI 思考过程；支持复盘与对局导入导出。
 // AI 决策由外部注入（ai_decide），引擎本身不依赖网络与 DOM 之外的 API。
 
-type Color = "black" | "white";
-type Mode = "pvp" | "pvc" | "ava";
-
-interface GameConfig {
-  size: number; // 棋盘每边交叉点数（如 15 表示 15x15）
-  first: Color; // 先手颜色
-  offset: number; // 棋盘内边距
-  judge_fill_count: number; // 连子个数(n >= 4)：五子棋为 5
-  mode: Mode; // 对战模式：pvp 人人 / pvc 人机 / ava AI 对战
-  ai_color: Color; // 人机模式下 AI 执子颜色
-  ai_delay: number; // AI 对战模式下每手间隔（ms），便于观战
-}
-
-interface Point {
-  fill: Color | null;
-  x: number;
-  y: number;
-  address: [number, number]; // [列 i, 行 j]
-}
-
-interface MoveRecord {
-  index: number;
-  address: [number, number];
-  color: Color;
-  by: "human" | "ai";
-  thinking?: string; // 输出结果中的简短分析（JSON thinking 字段）
-  reasoning?: string; // 思考过程（reasoning_content / 流式推理）
-  raw?: string; // AI 原始输出
-  ts: number;
-}
-
-interface AiContext {
-  board_text: string;
-  board_array: string[]; // arr[j][i] = 行j、列i 的格子（X/O/.）
-  moves_text: string;
-  color: Color;
-  size: number;
-  n: number;
-  on_thinking: (chunk: string) => void;
-  signal: AbortSignal;
-  correction?: string; // 重试时的纠正提示
-}
-
-// 外部注入的 AI 决策函数：返回思考文本与落子坐标 [i, j]
-type AiDecideFn = (ctx: AiContext) => Promise<{ reasoning?: string; thinking?: string; move: [number, number] | null; raw?: string }>;
-
-interface Callbacks {
-  onThinking?: (chunk: string, done: boolean) => void;
-  onMove?: (record: MoveRecord) => void;
-  onTurn?: (color: Color) => void;
-  onWin?: (winner: Color, line: [number, number][]) => void;
-  onStatus?: (msg: string) => void;
-  onBusy?: (busy: boolean) => void;
-}
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 class Game {
-  canvas!: HTMLCanvasElement;
-  ctx!: CanvasRenderingContext2D;
+  canvas;
+  ctx;
 
   // 每个棋子点，鼠标点击的判定生效区间差值
   static drop_area_size = 16;
   // 棋盘网格大小
   static grid_size = 40;
 
-  config: GameConfig = {
+  config = {
     size: 15,
     first: "black",
     offset: 24,
@@ -79,16 +25,16 @@ class Game {
   };
 
   // 所有棋子点 二维数组 points[i][j]（i=列, j=行）
-  points: Point[][] = [];
+  points = [];
 
   // 下次落子的颜色
-  next_drop: Color = "black";
+  next_drop = "black";
 
   // 落子历史
-  history: MoveRecord[] = [];
+  history = [];
 
   // 复盘游标：null=实时对局；否则显示到第 k 手（不含第 k 之后）
-  view_index: number | null = null;
+  view_index = null;
 
   // AI 思考中，禁止落子
   busy = false;
@@ -96,28 +42,23 @@ class Game {
   // AI 对战暂停标志
   stopped = false;
 
-  winner: Color | null = null;
-  win_line: [number, number][] | null = null;
+  winner = null;
+  win_line = null;
 
-  callbacks: Callbacks = {};
-  ai_decide: AiDecideFn | null = null;
+  callbacks = {};
+  ai_decide = null;
 
-  private abortController: AbortController | null = null;
+  abortController = null;
 
-  constructor(
-    canvasElement: HTMLCanvasElement,
-    config: Partial<GameConfig>,
-    callbacks?: Callbacks,
-    ai_decide?: AiDecideFn
-  ) {
-    Object.assign(this.config, config);
+  constructor(canvasElement, config, callbacks, ai_decide) {
+    Object.assign(this.config, config || {});
     if (callbacks) this.callbacks = callbacks;
     if (ai_decide) this.ai_decide = ai_decide;
 
     if (!canvasElement) return;
 
     this.canvas = canvasElement;
-    this.ctx = this.canvas.getContext("2d")!;
+    this.ctx = this.canvas.getContext("2d");
 
     this.init();
   }
@@ -138,7 +79,7 @@ class Game {
 
     this.points = [];
     for (let i = 0; i < size; i++) {
-      const points: Point[] = [];
+      const points = [];
       for (let j = 0; j < size; j++) {
         points.push({
           x: i * grid_size + offset,
@@ -176,7 +117,7 @@ class Game {
     }
 
     // 星位
-    const stars: [number, number][] = [];
+    const stars = [];
     if (size >= 9) {
       const edge = size >= 13 ? 3 : 2;
       stars.push([edge, edge], [edge, size - 1 - edge], [size - 1 - edge, edge], [size - 1 - edge, size - 1 - edge]);
@@ -192,7 +133,7 @@ class Game {
   };
 
   // 画棋子，画到第 upTo 手（含）
-  draw_stones = (upTo: number) => {
+  draw_stones = (upTo) => {
     const ctx = this.ctx;
     const grid_size = Game.grid_size;
     const { offset } = this.config;
@@ -212,7 +153,7 @@ class Game {
   };
 
   // 标记最后一手（红点）
-  draw_last_marker = (upTo: number) => {
+  draw_last_marker = (upTo) => {
     if (upTo <= 0 || upTo > this.history.length) return;
     const ctx = this.ctx;
     const grid_size = Game.grid_size;
@@ -262,7 +203,7 @@ class Game {
     });
   };
 
-  on_click = (x: number, y: number) => {
+  on_click = (x, y) => {
     if (this.busy || this.winner || this.view_index !== null) return;
     if (this.config.mode === "ava") return; // AI 对战：人不参与
     // 人机模式下，AI 回合禁止人落子
@@ -275,7 +216,7 @@ class Game {
   };
 
   // 根据鼠标点击坐标 获取棋子点
-  get_point_by_coordinate = (x: number, y: number) => {
+  get_point_by_coordinate = (x, y) => {
     const { drop_area_size } = Game;
     const half_size = drop_area_size / 2;
     for (let i = 0; i < this.points.length; i++) {
@@ -295,18 +236,12 @@ class Game {
   };
 
   // 通用落子：记录历史、判胜、翻色。返回是否落子成功。
-  drop = (
-    point: Point,
-    by: "human" | "ai",
-    thinking?: string,
-    raw?: string,
-    reasoning?: string
-  ): boolean => {
+  drop = (point, by, thinking, raw, reasoning) => {
     if (this.winner || this.view_index !== null) return false;
     if (point.fill) return false;
 
     point.fill = this.next_drop;
-    const record: MoveRecord = {
+    const record = {
       index: this.history.length,
       address: [point.address[0], point.address[1]],
       color: this.next_drop,
@@ -318,7 +253,7 @@ class Game {
     };
     this.history.push(record);
     this.render();
-    this.callbacks.onMove?.(record);
+    if (this.callbacks.onMove) this.callbacks.onMove(record);
 
     const line = this.check_win(point);
     if (line) {
@@ -326,38 +261,31 @@ class Game {
       this.win_line = line.map((p) => p.address);
       this.set_busy(false);
       this.render();
-      this.callbacks.onWin?.(this.winner, this.win_line);
+      if (this.callbacks.onWin) this.callbacks.onWin(this.winner, this.win_line);
       return true;
     }
 
     this.flip_drop();
-    this.callbacks.onTurn?.(this.next_drop);
+    if (this.callbacks.onTurn) this.callbacks.onTurn(this.next_drop);
     return true;
   };
 
   // 程序化落子（供 AI）
-  place_at = (
-    i: number,
-    j: number,
-    by: "human" | "ai",
-    thinking?: string,
-    raw?: string,
-    reasoning?: string
-  ): boolean => {
-    const point = this.points[i]?.[j];
+  place_at = (i, j, by, thinking, raw, reasoning) => {
+    const point = this.points[i] && this.points[i][j];
     if (!point) return false;
     return this.drop(point, by, thinking, raw, reasoning);
   };
 
-  is_valid_move = (move: [number, number] | null | undefined): boolean => {
+  is_valid_move = (move) => {
     if (!move) return false;
     const [i, j] = move;
-    const p = this.points[i]?.[j];
+    const p = this.points[i] && this.points[i][j];
     return !!p && !p.fill;
   };
 
   // 智能挽救模型给出的非法落子：越界时尝试 1 起算转换；界内被占用则取最近空位
-  salvage_move = (m: [number, number] | null | undefined): [number, number] | null => {
+  salvage_move = (m) => {
     if (!m) return null;
     const [i, j] = m;
     const { size } = this.config;
@@ -376,7 +304,7 @@ class Game {
   };
 
   // 以 (i,j) 为中心向外找最近的空位（切比雪夫距离 <=2）
-  nearest_empty = (i: number, j: number): [number, number] | null => {
+  nearest_empty = (i, j) => {
     const { size } = this.config;
     for (let r = 1; r <= 2; r++) {
       for (let di = -r; di <= r; di++) {
@@ -391,7 +319,7 @@ class Game {
   };
 
   // 描述非法落子原因，用作下一轮重试的纠正提示
-  describe_invalid = (m: [number, number] | null | undefined): string => {
+  describe_invalid = (m) => {
     const { size } = this.config;
     if (!m) return "上一手未给出可解析的 move 字段。请确保返回 JSON，且 move 为 [列i, 行j] 两个从 0 开始的整数。";
     const [i, j] = m;
@@ -406,7 +334,7 @@ class Game {
   };
 
   // 从思考过程（reasoning）中解析草拟的落子（取最后一个 {"move":[i,j]}）
-  parse_reasoning_move = (reasoning?: string): [number, number] | null => {
+  parse_reasoning_move = (reasoning) => {
     if (!reasoning) return null;
     const matches = [...reasoning.matchAll(/"move"\s*:\s*\[\s*(-?\d+)\s*,\s*(-?\d+)\s*\]/gi)];
     if (matches.length === 0) return null;
@@ -420,8 +348,8 @@ class Game {
   };
 
   // 取包含 (x,y) 的同色连线（沿 dx,dy 方向，含当前点）
-  get_run = (x: number, y: number, fill: Color, dx: number, dy: number): Point[] => {
-    const run: Point[] = [this.points[x][y]];
+  get_run = (x, y, fill, dx, dy) => {
+    const run = [this.points[x][y]];
     for (let k = 1; k < this.config.judge_fill_count; k++) {
       const p = (this.points[x + dx * k] || [])[y + dy * k];
       if (!p || p.fill !== fill) break;
@@ -436,11 +364,11 @@ class Game {
   };
 
   // 判断输赢：返回获胜连线点数组，无则 null
-  check_win = (point: Point): Point[] | null => {
+  check_win = (point) => {
     const [x, y] = point.address;
     const fill = point.fill;
     if (!fill) return null;
-    const dirs: [number, number][] = [
+    const dirs = [
       [1, 0], // 横向
       [0, 1], // 纵向
       [1, 1], // 左上到右下
@@ -455,14 +383,14 @@ class Game {
 
   // ============ AI 行棋 ============
 
-  set_busy = (b: boolean) => {
+  set_busy = (b) => {
     if (this.busy === b) return;
     this.busy = b;
-    this.callbacks.onBusy?.(b);
+    if (this.callbacks.onBusy) this.callbacks.onBusy(b);
   };
 
   // 是否轮到 AI：pvc 下 AI 色；ava 下任意色
-  private is_ai_turn = () => {
+  is_ai_turn = () => {
     if (this.config.mode === "pvc") return this.next_drop === this.config.ai_color;
     if (this.config.mode === "ava") return true;
     return false;
@@ -477,7 +405,7 @@ class Game {
     }
     if (!this.is_ai_turn()) return;
     if (!this.ai_decide) {
-      this.callbacks.onStatus?.("未配置 AI 决策");
+      if (this.callbacks.onStatus) this.callbacks.onStatus("未配置 AI 决策");
       return;
     }
     await this.run_ai_turn();
@@ -493,8 +421,8 @@ class Game {
     this.abortController = new AbortController();
     const color = this.next_drop;
     const colorText = color === "black" ? "黑" : "白";
-    this.callbacks.onStatus?.(`AI（${colorText}）思考中…`);
-    this.callbacks.onThinking?.("", false);
+    if (this.callbacks.onStatus) this.callbacks.onStatus(`AI（${colorText}）思考中…`);
+    if (this.callbacks.onThinking) this.callbacks.onThinking("", false);
 
     // AI 对战放慢节奏，便于观战
     if (this.config.mode === "ava" && this.history.length > 0) {
@@ -505,15 +433,15 @@ class Game {
       }
     }
 
-    let reasoning = "";      // 思考过程（reasoning_content / 流式输出）
-    let jsonThinking = "";   // 输出结果中的 thinking 字段
-    let move: [number, number] | null = null;
+    let reasoning = "";     // 思考过程（reasoning_content / 流式输出）
+    let jsonThinking = "";  // 输出结果中的 thinking 字段
+    let move = null;
     let raw = "";
 
-    let correction: string | undefined = undefined;
+    let correction = undefined;
     for (let attempt = 0; attempt < 3 && !move; attempt++) {
       try {
-        const res = await this.ai_decide!({
+        const res = await this.ai_decide({
           board_text: this.board_to_text(),
           board_array: this.board_to_array(),
           moves_text: this.moves_to_text(),
@@ -522,7 +450,7 @@ class Game {
           n: this.config.judge_fill_count,
           on_thinking: (c) => {
             reasoning += c;
-            this.callbacks.onThinking?.(c, false);
+            if (this.callbacks.onThinking) this.callbacks.onThinking(c, false);
           },
           signal: this.abortController.signal,
           correction,
@@ -554,15 +482,15 @@ class Game {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg.includes("abort")) {
           this.set_busy(false);
-          this.callbacks.onStatus?.("AI 已取消");
+          if (this.callbacks.onStatus) this.callbacks.onStatus("AI 已取消");
           return;
         }
-        this.callbacks.onStatus?.(`AI 调用失败：${msg}`);
+        if (this.callbacks.onStatus) this.callbacks.onStatus(`AI 调用失败：${msg}`);
         break;
       }
     }
 
-    this.callbacks.onThinking?.(reasoning, true);
+    if (this.callbacks.onThinking) this.callbacks.onThinking(reasoning, true);
 
     if (this.stopped || this.winner) {
       this.set_busy(false);
@@ -575,9 +503,9 @@ class Game {
     if (!move) {
       move = this.fallback_move(color);
       reasoning += `\n\n[模型未给出合法落子，使用兜底启发式：(${move[0]}, ${move[1]})]`;
-      this.callbacks.onStatus?.("AI 未给出合法落子，使用兜底策略");
+      if (this.callbacks.onStatus) this.callbacks.onStatus("AI 未给出合法落子，使用兜底策略");
     } else {
-      this.callbacks.onStatus?.(`AI 落子 (${move[0]}, ${move[1]})`);
+      if (this.callbacks.onStatus) this.callbacks.onStatus(`AI 落子 (${move[0]}, ${move[1]})`);
     }
 
     this.place_at(move[0], move[1], "ai", jsonThinking, raw, reasoning);
@@ -599,23 +527,23 @@ class Game {
     this.stopped = true;
     if (this.abortController) this.abortController.abort();
     this.set_busy(false);
-    this.callbacks.onStatus?.("已暂停");
+    if (this.callbacks.onStatus) this.callbacks.onStatus("已暂停");
   };
 
   // 继续 AI 对战循环
   resume_ai = () => {
     if (this.config.mode === "pvp" || this.winner) return;
     this.stopped = false;
-    this.callbacks.onStatus?.("继续对局");
+    if (this.callbacks.onStatus) this.callbacks.onStatus("继续对局");
     this.maybe_trigger_ai();
   };
 
   // 兜底启发式：必杀 > 堵必杀 > 综合评分最高
-  fallback_move = (color: Color): [number, number] => {
+  fallback_move = (color) => {
     const { size } = this.config;
-    const opp: Color = color === "black" ? "white" : "black";
+    const opp = color === "black" ? "white" : "black";
 
-    const empties: [number, number][] = [];
+    const empties = [];
     let hasStone = false;
     for (let i = 0; i < size; i++) {
       for (let j = 0; j < size; j++) {
@@ -642,7 +570,7 @@ class Game {
       this.points[i][j].fill = null;
       if (win) return [i, j];
     }
-    let best: [number, number] = empties[0];
+    let best = empties[0];
     let bestScore = -1;
     for (const [i, j] of empties) {
       const score = this.score_cell(i, j, color) + this.score_cell(i, j, opp) * 0.9;
@@ -654,11 +582,11 @@ class Game {
     return best;
   };
 
-  has_neighbor = (i: number, j: number): boolean => {
+  has_neighbor = (i, j) => {
     for (let di = -1; di <= 1; di++) {
       for (let dj = -1; dj <= 1; dj++) {
         if (di === 0 && dj === 0) continue;
-        const p = this.points[i + di]?.[j + dj];
+        const p = this.points[i + di] && this.points[i + di][j + dj];
         if (p && p.fill) return true;
       }
     }
@@ -666,8 +594,8 @@ class Game {
   };
 
   // 评估在 (i,j) 落 color 子后，四个方向上同色连子潜力
-  score_cell = (i: number, j: number, color: Color): number => {
-    const dirs: [number, number][] = [
+  score_cell = (i, j, color) => {
+    const dirs = [
       [1, 0],
       [0, 1],
       [1, 1],
@@ -679,7 +607,7 @@ class Game {
       let openA = false;
       let openB = false;
       for (let k = 1; k < this.config.judge_fill_count; k++) {
-        const p = this.points[i + dx * k]?.[j + dy * k];
+        const p = this.points[i + dx * k] && this.points[i + dx * k][j + dy * k];
         if (!p) break;
         if (p.fill === color) count++;
         else {
@@ -688,7 +616,7 @@ class Game {
         }
       }
       for (let k = 1; k < this.config.judge_fill_count; k++) {
-        const p = this.points[i - dx * k]?.[j - dy * k];
+        const p = this.points[i - dx * k] && this.points[i - dx * k][j - dy * k];
         if (!p) break;
         if (p.fill === color) count++;
         else {
@@ -702,9 +630,9 @@ class Game {
   };
 
   // 导出棋盘文本（供 LLM）
-  board_to_text = (): string => {
+  board_to_text = () => {
     const { size } = this.config;
-    const lines: string[] = [];
+    const lines = [];
     // 表头每列固定 2 字符、无分隔，与行内格子对齐，避免列号错位
     const header = "   " + Array.from({ length: size }, (_, i) => String(i).padStart(2, " ")).join("");
     lines.push(header);
@@ -720,9 +648,9 @@ class Game {
   };
 
   // 导出棋盘二维数组（供 LLM 精确按下标取值）：arr[j][i] = 行j、列i 的格子
-  board_to_array = (): string[] => {
+  board_to_array = () => {
     const { size } = this.config;
-    const arr: string[] = [];
+    const arr = [];
     for (let j = 0; j < size; j++) {
       let row = "";
       for (let i = 0; i < size; i++) {
@@ -735,7 +663,7 @@ class Game {
   };
 
   // 导出走子记录文本
-  moves_to_text = (): string => {
+  moves_to_text = () => {
     return this.history
       .map((m, idx) => `${idx + 1}. ${m.color === "black" ? "黑" : "白"} (${m.address[0]},${m.address[1]})`)
       .join("  ");
@@ -743,21 +671,22 @@ class Game {
 
   // ============ 复盘 ============
 
-  goto_move = (index: number) => {
+  goto_move = (index) => {
     const clamped = Math.max(0, Math.min(index, this.history.length));
     this.view_index = clamped >= this.history.length ? null : clamped;
     this.render();
     if (this.view_index === null) {
-      this.callbacks.onStatus?.(`实时对局（共 ${this.history.length} 手）`);
+      if (this.callbacks.onStatus) this.callbacks.onStatus(`实时对局（共 ${this.history.length} 手）`);
     } else {
       const m = this.history[this.view_index - 1];
-      this.callbacks.onStatus?.(
-        `复盘：第 ${clamped}/${this.history.length} 手 - ${m ? (m.color === "black" ? "黑" : "白") + " (" + m.address[0] + "," + m.address[1] + ")" : "开局"}`
-      );
+      if (this.callbacks.onStatus)
+        this.callbacks.onStatus(
+          `复盘：第 ${clamped}/${this.history.length} 手 - ${m ? (m.color === "black" ? "黑" : "白") + " (" + m.address[0] + "," + m.address[1] + ")" : "开局"}`
+        );
     }
   };
 
-  step = (delta: number) => {
+  step = (delta) => {
     const base = this.view_index === null ? this.history.length : this.view_index;
     this.goto_move(base + delta);
   };
@@ -765,17 +694,17 @@ class Game {
   to_live = () => {
     this.view_index = null;
     this.render();
-    this.callbacks.onStatus?.(`实时对局（共 ${this.history.length} 手）`);
+    if (this.callbacks.onStatus) this.callbacks.onStatus(`实时对局（共 ${this.history.length} 手）`);
   };
 
   // 悔棋：撤销最后一手；人机模式下若撤的是 AI 一手，则连同人的上一手一起撤
-  undo = (): boolean => {
+  undo = () => {
     this.cancel_ai();
     if (this.history.length === 0) return false;
-    let last = this.history.pop()!;
+    let last = this.history.pop();
     this.points[last.address[0]][last.address[1]].fill = null;
     if (this.config.mode === "pvc" && last.by === "ai" && this.history.length > 0) {
-      last = this.history.pop()!;
+      last = this.history.pop();
       this.points[last.address[0]][last.address[1]].fill = null;
     }
     this.winner = null;
@@ -788,8 +717,8 @@ class Game {
         ? "white"
         : "black";
     this.render();
-    this.callbacks.onStatus?.(`悔棋，当前 ${this.history.length} 手`);
-    this.callbacks.onTurn?.(this.next_drop);
+    if (this.callbacks.onStatus) this.callbacks.onStatus(`悔棋，当前 ${this.history.length} 手`);
+    if (this.callbacks.onTurn) this.callbacks.onTurn(this.next_drop);
     return true;
   };
 
@@ -799,13 +728,13 @@ class Game {
     return {
       version: 1,
       config: { ...this.config },
-      moves: this.history.map((m) => ({ ...m, address: [...m.address] as [number, number] })),
+      moves: this.history.map((m) => ({ ...m, address: [m.address[0], m.address[1]] })),
       winner: this.winner,
       created_at: new Date().toISOString(),
     };
   };
 
-  load_record = (data: { config?: Partial<GameConfig>; moves: MoveRecord[]; winner?: Color | null }) => {
+  load_record = (data) => {
     this.cancel_ai();
     this.stopped = true;
     if (data.config) Object.assign(this.config, data.config);
@@ -816,7 +745,7 @@ class Game {
     this.busy = false;
     this.init();
     for (const m of data.moves) {
-      const p = this.points[m.address[0]]?.[m.address[1]];
+      const p = this.points[m.address[0]] && this.points[m.address[0]][m.address[1]];
       if (p && !p.fill) {
         p.fill = m.color;
         this.history.push({ ...m, address: [m.address[0], m.address[1]] });
@@ -829,13 +758,13 @@ class Game {
           : "black"
         : this.config.first;
     this.render();
-    this.callbacks.onStatus?.(`已载入 ${this.history.length} 手对局，可复盘`);
-    this.callbacks.onTurn?.(this.next_drop);
+    if (this.callbacks.onStatus) this.callbacks.onStatus(`已载入 ${this.history.length} 手对局，可复盘`);
+    if (this.callbacks.onTurn) this.callbacks.onTurn(this.next_drop);
   };
 
   // ============ 生命周期 ============
 
-  reset = (config?: Partial<GameConfig>) => {
+  reset = (config) => {
     this.cancel_ai();
     this.stopped = false;
     if (config) Object.assign(this.config, config);
@@ -845,19 +774,19 @@ class Game {
     this.view_index = null;
     this.busy = false;
     this.init();
-    this.callbacks.onStatus?.("新对局开始");
-    this.callbacks.onTurn?.(this.next_drop);
+    if (this.callbacks.onStatus) this.callbacks.onStatus("新对局开始");
+    if (this.callbacks.onTurn) this.callbacks.onTurn(this.next_drop);
   };
 
   start = () => {
     this.set_click_event();
-    this.callbacks.onTurn?.(this.next_drop);
+    if (this.callbacks.onTurn) this.callbacks.onTurn(this.next_drop);
     // 不自动开始 AI：需用户点「开始新对局」才会触发，避免打开页面即自动行棋
   };
 
   end = () => {
     const winText = this.winner === "black" ? "黑子" : "白子";
     const loseText = this.winner === "black" ? "白子" : "黑子";
-    this.callbacks.onStatus?.(`${winText} 获胜，${loseText} 说话！`);
+    if (this.callbacks.onStatus) this.callbacks.onStatus(`${winText} 获胜，${loseText} 说话！`);
   };
 }

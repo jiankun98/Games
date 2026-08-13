@@ -4,7 +4,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "test:io": "node run/websocket.js"
+    "test:io": "node run/websocket.js",
+    "start": "node run/game.js",
+    "start gobang": "node run/game.js"
   },
   "keywords": [],
   "author": "",
@@ -12,6 +14,13 @@
   "description": "",
   "dependencies": {
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "three": "^0.185.1"
+  },
+  "packageManager": "pnpm@8.15.5+sha1.a58c038faac410c947dbdb93eb30994037d0fce2",
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "express": "^4.21.2"
   }
 }
