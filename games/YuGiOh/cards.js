@@ -814,128 +814,510 @@ const CARDS = [
                     } }
             ]
         } },
+    /* ========================= 扩充：机械族 ========================= */
+    { id: "proto", password: "26439287", name: "原型电子龙", type: "monster", level: 3, attribute: "光", race: "机械族", atk: 1100, def: 600, text: "电子龙的原型机，虽未完成却已有钢铁之威。" },
+    { id: "cybertwin", password: "74157028", name: "电子双生龙", type: "monster", level: 8, attribute: "光", race: "机械族", atk: 2800, def: 2100, fusion: { materials: ["cyberdragon", "cyberdragon"] }, text: "融合：电子龙×2。钢铁双头龙的二连击。" },
+    { id: "powerbond", password: "37630732", name: "力量焊接", type: "spell", subtype: "通常", text: "将手牌/场上素材融合召唤1只机械族融合怪兽。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.extra(g.activator).some((f) => f.fusion && f.race === "机械族" && f.fusion.materials.every((cid) => g.hasMaterial(g.activator, cid))),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.extra(g.activator).filter((f) => f.fusion && f.race === "机械族" && f.fusion.materials.every((cid) => g.hasMaterial(g.activator, cid))).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("力量焊接：选择要融合召唤的机械族怪兽", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const f = g.findCard(t[0]);
+                        if (f) await g.fusionSummon(f, g.activator);
+                    } } }]
+        } },
+    { id: "cyberrepair", password: "86686671", name: "电子修复工厂", type: "spell", subtype: "通常", text: "自己墓地存在「电子龙」的场合：将墓地1只机械族怪兽加入手卡。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.graveyard(g.activator).some((c) => c.cid === "cyberdragon") && g.graveyard(g.activator).some((c) => c.type === "monster" && c.race === "机械族"),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.graveyard(g.activator).filter((c) => c.type === "monster" && c.race === "机械族").map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("电子修复工厂：将墓地1只机械族怪兽加入手卡", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.graveyard(g.activator).find((x) => x.uid === t[0]);
+                        if (c) await g.addToHand(c, g.activator);
+                    } } }]
+        } },
+    /* ========================= 扩充：元素英雄 ========================= */
+    { id: "e_call", password: "00213326", name: "E·紧急呼叫", type: "spell", subtype: "通常", text: "从卡组将1只「元素英雄」怪兽加入手卡。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.deck(g.activator).some((c) => c.name.startsWith("元素英雄")),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.deck(g.activator).filter((c) => c.name.startsWith("元素英雄")).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("E·紧急呼叫：将卡组1只「元素英雄」加入手卡", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.deck(g.activator).find((x) => x.uid === t[0]);
+                        if (c) await g.addToHand(c, g.activator);
+                    } } }]
+        } },
+    { id: "hero_signal", password: "22020907", name: "英雄标记", type: "trap", subtype: "通常", text: "自己怪兽被战斗破坏时：从卡组特殊召唤1只4星以下「元素英雄」。", effect: {
+            triggers: [{ event: "destroyed_by_battle", auto: true,
+                    condition: (self, ev, g) => ev.owner === g.playerOf(self) && ev.card !== self && self.turnSet < g.turn,
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.deck(g.playerOf(self)).filter((c) => c.name.startsWith("元素英雄") && c.level <= 4).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("英雄标记：从卡组特殊召唤1只「元素英雄」", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.deck(g.playerOf(self)).find((x) => x.uid === t[0]);
+                        if (c) await g.specialSummon(c, g.playerOf(self), "atk", "deck");
+                    } } }]
+        } },
+    { id: "hero_barrier", password: "44676200", name: "英雄障壁", type: "trap", subtype: "通常", text: "对方怪兽攻击宣言时，若自己场上有表侧表示「元素英雄」：使该攻击无效。", effect: {
+            triggers: [{ event: "attack_declare", auto: false,
+                    condition: (self, ev, g) => ev.attackerOwner !== g.playerOf(self) && self.turnSet < g.turn && g.monsters(g.playerOf(self)).some((m) => !m.faceDown && m.name.startsWith("元素英雄")),
+                    resolve: async (self, ev, g) => { g.negateAttack(true); } }]
+        } },
+    /* ========================= 扩充：青眼白龙 ========================= */
+    { id: "ancientrules", password: "10667321", name: "远古规则", type: "spell", subtype: "通常", text: "从手牌特殊召唤1只5星以上的通常怪兽。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.hand(g.activator).some((c) => c.type === "monster" && !c.effect && (c.level || 0) >= 5),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.hand(g.activator).filter((c) => c.type === "monster" && !c.effect && (c.level || 0) >= 5).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("远古规则：从手牌特殊召唤1只通常怪兽", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.hand(g.activator).find((x) => x.uid === t[0]);
+                        if (c) await g.specialSummon(c, g.activator, "atk", "hand");
+                    } } }]
+        } },
+    { id: "silvercry", password: "87025064", name: "银龙的咆哮", type: "spell", subtype: "速攻", text: "从自己墓地特殊召唤1只龙族通常怪兽。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.graveyard(g.activator).some((c) => c.type === "monster" && c.race === "龙族" && !c.effect),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.graveyard(g.activator).filter((c) => c.type === "monster" && c.race === "龙族" && !c.effect).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("银龙的咆哮：从墓地特殊召唤1只龙族通常怪兽", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.graveyard(g.activator).find((x) => x.uid === t[0]);
+                        if (c) await g.specialSummon(c, g.activator, "def", "grave");
+                    } } }]
+        } },
+    { id: "championsvigilance", password: "82382815", name: "王者看破", type: "trap", subtype: "反击", text: "自己场上有5星以上通常怪兽时：魔法/陷阱卡发动无效并破坏。", effect: {
+            triggers: [{ event: "activate", auto: false,
+                    condition: (self, ev, g) => ev.actor !== g.playerOf(self) && self.turnSet < g.turn && (ev.card?.type === "spell" || ev.card?.type === "trap") && g.allMonsters().some((m) => !m.faceDown && !m.effect && (m.level || 0) >= 5 && g.controller(m) === g.playerOf(self)),
+                    resolve: async (self, ev, g) => { g.negate(ev.link); } }],
+            speed: 3
+        } },
+    /* ========================= 扩充：黑魔术师 ========================= */
+    { id: "magicaldimension", password: "28553439", name: "次元魔法", type: "spell", subtype: "速攻", text: "解放自己场上1只怪兽，从手牌特殊召唤1只魔法师族怪兽，之后可破坏场上1只怪兽。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.monsters(g.activator).length > 0 && g.hand(g.activator).some((c) => c.type === "monster" && c.race === "魔法师族"),
+                    acquireTargets: async (self, ev, g) => pickMonsters(g, "次元魔法：解放自己场上1只怪兽", (m) => g.controller(m) === g.activator, 1),
+                    cost: async (self, ev, g, t) => { if (t && t[0]) { const m = g.findCard(t[0]); if (m) await g.tribute(m); } },
+                    resolve: async (self, ev, g, t) => {
+                        const opts = g.hand(g.activator).filter((c) => c.type === "monster" && c.race === "魔法师族").map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (opts.length) {
+                            const s = await g.askTargets("次元魔法：从手牌特殊召唤1只魔法师族", opts, 1);
+                            if (s && s[0]) { const c = g.hand(g.activator).find((x) => x.uid === s[0]); if (c) await g.specialSummon(c, g.activator, "atk", "hand"); }
+                        }
+                        const dopts = g.allMonsters().map((m) => ({ value: m.uid, label: m.name, card: m }));
+                        if (dopts.length) {
+                            const d = await g.askTargets("次元魔法：破坏场上1只怪兽", dopts, 1);
+                            if (d && d[0]) { const m = g.findCard(d[0]); if (m) await g.destroy(m); }
+                        }
+                    } }]
+        } },
+    /* ========================= 扩充：真红眼黑龙 ========================= */
+    { id: "redeyesfusion", password: "06172122", name: "真红眼融合", type: "spell", subtype: "通常", text: "将手牌/场上素材融合召唤1只以「真红眼黑龙」为素材的融合怪兽。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.extra(g.activator).some((f) => f.fusion && f.fusion.materials.includes("redeyes") && f.fusion.materials.every((cid) => g.hasMaterial(g.activator, cid))),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.extra(g.activator).filter((f) => f.fusion && f.fusion.materials.includes("redeyes") && f.fusion.materials.every((cid) => g.hasMaterial(g.activator, cid))).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("真红眼融合：选择要融合召唤的怪兽", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const f = g.findCard(t[0]);
+                        if (f) await g.fusionSummon(f, g.activator);
+                    } } }]
+        } },
+    /* ========================= 扩充：神鹰女郎 ========================= */
+    { id: "huntingground", password: "75782277", name: "神鹰的狩猎场", type: "spell", subtype: "场地", text: "场上鸟兽族怪兽攻守上升200。", effect: { races: ["鸟兽族"],
+            triggers: [{ event: "manual", auto: false, resolve: async (self, ev, g) => { await g.setField(self); } }],
+            continuous: (self, mon, g) => self.effect.races.includes(mon.race) ? { atkDelta: 200, defDelta: 200 } : { atkDelta: 0, defDelta: 0 } } },
+    { id: "hystericparty", password: "77778835", name: "歇斯底里的聚会", type: "trap", subtype: "通常", text: "丢弃1张手卡：从自己墓地特殊召唤1只「神鹰」怪兽。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => self.turnSet < g.turn && g.graveyard(g.playerOf(self)).some((c) => c.name.includes("神鹰")),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.graveyard(g.playerOf(self)).filter((c) => c.name.includes("神鹰")).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("歇斯底里的聚会：从墓地特殊召唤1只「神鹰」", opts, 1);
+                    },
+                    cost: async (self, ev, g) => { await g.discard(g.playerOf(self), 1); },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.graveyard(g.playerOf(self)).find((x) => x.uid === t[0]);
+                        if (c) await g.specialSummon(c, g.playerOf(self), "atk", "grave");
+                    } } }]
+        } },
+    /* ========================= 扩充：磁石战士 ========================= */
+    { id: "magnet_delta", password: "12262393", name: "磁石战士δ", type: "monster", level: 4, attribute: "地", race: "岩石族", atk: 1600, def: 1400, text: "磁石四兄弟中的末弟，以灵巧弥补力量。" },
+    /* ========================= 新卡组：战士族 ========================= */
+    { id: "maraudingcaptain", password: "02460565", name: "切入队长", type: "monster", level: 3, attribute: "地", race: "战士族", atk: 1200, def: 400, text: "此卡召唤成功时：从手牌特殊召唤1只4星以下怪兽。", effect: {
+            triggers: [{ event: "summon", auto: true,
+                    condition: (self, ev, g) => ev.monster === self && g.hand(g.playerOf(self)).some((c) => c.type === "monster" && c.level <= 4),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.hand(g.playerOf(self)).filter((c) => c.type === "monster" && c.level <= 4).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("切入队长：从手牌特殊召唤1只4星以下怪兽", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.hand(g.playerOf(self)).find((x) => x.uid === t[0]);
+                        if (c) await g.specialSummon(c, g.playerOf(self), "atk", "hand");
+                    } } }]
+        } },
+    { id: "warriordai", password: "75953262", name: "战士·戴格雷法", type: "monster", level: 4, attribute: "暗", race: "战士族", atk: 1700, def: 1600, text: "丢弃1张手卡：从卡组将1只战士族怪兽送去墓地。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => self.location === "monster" && g.deck(g.playerOf(self)).some((c) => c.type === "monster" && c.race === "战士族"),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.deck(g.playerOf(self)).filter((c) => c.type === "monster" && c.race === "战士族").map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("战士·戴格雷法：从卡组将1只战士族送去墓地", opts, 1);
+                    },
+                    cost: async (self, ev, g) => { await g.discard(g.playerOf(self), 1); },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.deck(g.playerOf(self)).find((x) => x.uid === t[0]);
+                        if (c) await g.sendToGrave(c, "deck", "effect");
+                    } } }]
+        } },
+    { id: "amazoness", password: "94004268", name: "亚马逊剑士", type: "monster", level: 4, attribute: "地", race: "战士族", atk: 1500, def: 1600, text: "亚马逊的剑士，剑锋所指便是归途。" },
+    { id: "swordstalker", password: "51345461", name: "剑之猎人", type: "monster", level: 5, attribute: "地", race: "战士族", atk: 2450, def: 1700, text: "被此卡战斗破坏的怪兽会化为它的利刃。" },
+    { id: "commandknight", password: "10375182", name: "指挥骑士", type: "monster", level: 4, attribute: "炎", race: "战士族", atk: 1200, def: 1900, text: "只要此卡在场上表侧表示存在，己方战士族怪兽攻守上升400。", effect: {
+            triggers: [],
+            continuous: (self, mon, g) => mon.race === "战士族" && g.controller(mon) === g.controller(self) ? { atkDelta: 400, defDelta: 400 } : { atkDelta: 0, defDelta: 0 } } },
+    { id: "reinforcement", password: "32807846", name: "增援", type: "spell", subtype: "通常", text: "从卡组将1只4星以下战士族怪兽加入手卡。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.deck(g.activator).some((c) => c.type === "monster" && c.race === "战士族" && c.level <= 4),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.deck(g.activator).filter((c) => c.type === "monster" && c.race === "战士族" && c.level <= 4).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("增援：将卡组1只战士族加入手卡", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.deck(g.activator).find((x) => x.uid === t[0]);
+                        if (c) await g.addToHand(c, g.activator);
+                    } } }]
+        } },
+    { id: "warriorreturning", password: "95281259", name: "战士的生还", type: "spell", subtype: "通常", text: "从自己墓地选择1只战士族怪兽加入手卡。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.graveyard(g.activator).some((c) => c.type === "monster" && c.race === "战士族"),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.graveyard(g.activator).filter((c) => c.type === "monster" && c.race === "战士族").map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("战士的生还：将墓地1只战士族加入手卡", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.graveyard(g.activator).find((x) => x.uid === t[0]);
+                        if (c) await g.addToHand(c, g.activator);
+                    } } }]
+        } },
+    { id: "aforces", password: "00403847", name: "联合军", type: "spell", subtype: "场地", text: "场上战士族怪兽攻守上升200。", effect: { races: ["战士族"],
+            triggers: [{ event: "manual", auto: false, resolve: async (self, ev, g) => { await g.setField(self); } }],
+            continuous: (self, mon, g) => self.effect.races.includes(mon.race) ? { atkDelta: 200, defDelta: 200 } : { atkDelta: 0, defDelta: 0 } } },
+    /* ========================= 新卡组：不死族 ========================= */
+    { id: "vampirelord", password: "53839837", name: "吸血鬼领主", type: "monster", level: 6, attribute: "暗", race: "不死族", atk: 2000, def: 1500, text: "自己准备阶段，若此卡在墓地：将此卡特殊召唤。", effect: {
+            triggers: [{ event: "phase_start", auto: true,
+                    condition: (self, ev, g) => ev.phase === "standby" && self.location === "grave" && g.playerOf(self) === ev.player,
+                    resolve: async (self, ev, g) => { await g.specialSummon(self, g.playerOf(self), "atk", "grave"); } }]
+        } },
+    { id: "zombiemaster", password: "17259470", name: "僵尸之主", type: "monster", level: 4, attribute: "暗", race: "不死族", atk: 1800, def: 0, text: "丢弃1张手卡：从自己墓地特殊召唤1只不死族怪兽。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => self.location === "monster" && g.graveyard(g.playerOf(self)).some((c) => c.type === "monster" && c.race === "不死族"),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.graveyard(g.playerOf(self)).filter((c) => c.type === "monster" && c.race === "不死族").map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("僵尸之主：从墓地特殊召唤1只不死族怪兽", opts, 1);
+                    },
+                    cost: async (self, ev, g) => { await g.discard(g.playerOf(self), 1); },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.graveyard(g.playerOf(self)).find((x) => x.uid === t[0]);
+                        if (c) await g.specialSummon(c, g.playerOf(self), "atk", "grave");
+                    } } }]
+        } },
+    { id: "ryukokki", password: "57281778", name: "龙骨鬼", type: "monster", level: 6, attribute: "暗", race: "不死族", atk: 2400, def: 2000, text: "以龙之骨炼成的恶鬼。" },
+    { id: "despair", password: "71200730", name: "来自黑暗的绝望", type: "monster", level: 8, attribute: "暗", race: "不死族", atk: 2800, def: 3000, text: "自黑暗深渊爬出的绝望化身。" },
+    { id: "spiritreaper", password: "23205979", name: "削魂的死灵", type: "monster", level: 3, attribute: "暗", race: "不死族", atk: 300, def: 200, text: "持镰的死灵，不会被轻易消灭。" },
+    { id: "patrician", password: "19153634", name: "黑暗贵族", type: "monster", level: 5, attribute: "暗", race: "不死族", atk: 2000, def: 1400, text: "统治黑暗的贵族。" },
+    { id: "bookoflife", password: "02204140", name: "生者之书", type: "spell", subtype: "通常", text: "从自己墓地特殊召唤1只不死族怪兽。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.graveyard(g.activator).some((c) => c.type === "monster" && c.race === "不死族"),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.graveyard(g.activator).filter((c) => c.type === "monster" && c.race === "不死族").map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("生者之书：从墓地特殊召唤1只不死族", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.graveyard(g.activator).find((x) => x.uid === t[0]);
+                        if (c) await g.specialSummon(c, g.activator, "atk", "grave");
+                    } } }]
+        } },
+    { id: "mummycall", password: "04861205", name: "木乃伊的呼声", type: "spell", subtype: "永续", text: "自己场上没有怪兽的场合：从手牌特殊召唤1只不死族怪兽。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => g.monsters(g.activator).length === 0 && g.hand(g.activator).some((c) => c.type === "monster" && c.race === "不死族"),
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.hand(g.activator).filter((c) => c.type === "monster" && c.race === "不死族").map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("木乃伊的呼声：从手牌特殊召唤1只不死族", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.hand(g.activator).find((x) => x.uid === t[0]);
+                        if (c) await g.specialSummon(c, g.activator, "atk", "hand");
+                    } } }]
+        } },
+    /* ========================= 新卡组：天使族 ========================= */
+    { id: "dunames", password: "12493482", name: "月之使者·杜娜梅斯", type: "monster", level: 4, attribute: "光", race: "天使族", atk: 1800, def: 1050, text: "月之女神派遣至人间的使者。" },
+    { id: "shiningabyss", password: "87303357", name: "闪耀深渊", type: "monster", level: 4, attribute: "光", race: "天使族", atk: 1600, def: 1800, text: "守护深渊的闪耀天使。" },
+    { id: "mudora", password: "82108372", name: "姆多拉", type: "monster", level: 4, attribute: "地", race: "天使族", atk: 1500, def: 1800, text: "大地孕育的天使。" },
+    { id: "hoshiningen", password: "95956346", name: "光辉天使", type: "monster", level: 2, attribute: "光", race: "天使族", atk: 500, def: 700, text: "此卡被战斗破坏时：从卡组特殊召唤1只攻击力1500以下的光属性怪兽。", effect: {
+            triggers: [{ event: "destroyed_by_battle", auto: true,
+                    condition: (self, ev, g) => ev.card === self,
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = g.deck(g.playerOf(self)).filter((c) => c.type === "monster" && c.attribute === "光" && (c.atk || 0) <= 1500).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("光辉天使：从卡组特殊召唤1只光属性怪兽", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.deck(g.playerOf(self)).find((x) => x.uid === t[0]);
+                        if (c) await g.specialSummon(c, g.playerOf(self), "atk", "deck");
+                    } } }]
+        } },
+    { id: "mars", password: "91123920", name: "力之代行者·火星", type: "monster", level: 3, attribute: "光", race: "天使族", atk: 0, def: 0, text: "此卡攻击力上升双方LP差值。", effect: {
+            triggers: [],
+            continuous: (self, mon, g) => self === mon ? { atkDelta: Math.max(0, g.lp(g.playerOf(self)) - g.lp(g.opponent(g.playerOf(self)))), defDelta: 0 } : { atkDelta: 0, defDelta: 0 } } },
+    { id: "solemnwishes", password: "35346968", name: "神之惠", type: "trap", subtype: "永续", text: "自己的抽卡阶段恢复500基本分。", effect: {
+            triggers: [
+                { event: "manual", auto: false,
+                    condition: (self, ev, g) => self.turnSet < g.turn,
+                    resolve: async () => {} },
+                { event: "phase_start", auto: true,
+                    condition: (self, ev, g) => ev.phase === "draw" && ev.player === g.playerOf(self) && !self.faceDown,
+                    resolve: async (self, ev, g) => { g.payLp(g.playerOf(self), -500); } }
+            ] } },
 ];
 const CARD_BY_ID = Object.fromEntries(CARDS.map((c) => [c.id, c]));
 // 卡组预设：经典 / 元素英雄(游城十代) / 机械族
 const DECK_PRESETS = {
     classic: {
         main: [
-            "blueyes", "darkmagician", "summonedskull", "gaia",
+            // 低星怪 24
             "celtic", "celtic", "gemini", "gemini", "axe", "axe", "battleox", "battleox",
-            "lajinn", "stone", "stone", "silverfang", "mysticalelf", "mysticalelf",
-            "maneater", "maneater", "oldvindictive", "magicianoffaith", "penguin",
-            "yomiship", "giantgerm", "witch", "sangan", "exiled", "cannonsoldier",
-            "goblin", "goblin", "speardragon", "kuriboh", "kuriboh", "sinisterserpent",
-            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "gracefulcharity",
-            "changeofheart", "shieldsword", "fissure", "smashing", "axeofdespair", "axeofdespair",
-            "blackpendant", "magepower", "united", "yami", "mountain", "forest",
-            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder",
-            "negateattack", "dimensionalprison", "waboku", "waboku", "callofhaunted",
-            "torrential", "ringofdestruction", "dusttornado", "seventools", "magicjammer", "bottomless",
-            "swords", "heavystorm",
+            "lajinn", "lajinn", "stone", "stone", "mysticalelf", "mysticalelf",
+            "maneater", "maneater", "oldvindictive", "oldvindictive", "witch", "sangan",
+            "exiled", "goblin", "kuriboh", "sinisterserpent",
+            // 高星怪 8
+            "blueyes", "blueyes", "darkmagician", "darkmagician", "summonedskull", "summonedskull", "gaia", "gaia",
+            // 魔法 18
+            "raigeki", "darkhole", "mst", "mst", "monsterreborn", "potofgreed", "potofgreed",
+            "gracefulcharity", "changeofheart", "shieldsword", "fissure", "fissure", "smashing",
+            "swords", "heavystorm", "axeofdespair", "axeofdespair", "magepower",
+            // 陷阱 10
+            "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder", "magiccylinder",
+            "waboku", "waboku", "callofhaunted", "torrential",
         ],
         extra: [],
     },
     hero: {
         main: [
-            "ehero_avian", "ehero_avian", "ehero_burstinatrix", "ehero_burstinatrix",
-            "ehero_clayman", "ehero_clayman", "ehero_sparkman", "ehero_sparkman",
+            // 低星怪 24
+            "ehero_avian", "ehero_avian", "ehero_avian", "ehero_burstinatrix", "ehero_burstinatrix", "ehero_burstinatrix",
+            "ehero_clayman", "ehero_clayman", "ehero_sparkman", "ehero_sparkman", "ehero_sparkman",
             "ehero_bubbleman", "ehero_bubbleman", "ehero_wildheart", "ehero_wildheart",
-            "ehero_bladedge", "ehero_stratos", "ehero_stratos",
-            "polymerization", "polymerization", "polymerization",
-            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "gracefulcharity",
-            "harpiesfeatherduster", "gianttrunade", "prematureburial", "axeofdespair", "magepower",
-            "changeofheart", "shieldsword", "fissure", "smashing",
-            "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder", "negateattack",
-            "waboku", "callofhaunted", "torrential", "bottomless", "solemnjudgment", "trapstun",
-            "swords",
+            "ehero_stratos", "ehero_stratos", "gemini", "gemini", "celtic", "celtic",
+            "magicianoffaith", "kuriboh", "witch",
+            // 高星怪 7
+            "ehero_bladedge", "ehero_bladedge", "ehero_bladedge", "darkmagician", "darkmagician", "gaia", "summonedskull",
+            // 魔法 19
+            "polymerization", "polymerization", "polymerization", "e_call", "e_call",
+            "raigeki", "darkhole", "mst", "mst", "monsterreborn", "potofgreed", "potofgreed",
+            "gracefulcharity", "changeofheart", "swords", "axeofdespair", "magepower", "fissure", "smashing",
+            // 陷阱 10
+            "hero_barrier", "hero_barrier", "hero_signal", "hero_signal",
+            "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder", "negateattack", "waboku",
         ],
-        extra: ["ehero_flamewingman", "ehero_flamewingman", "ehero_flamewingman", "ehero_thundergiant", "ehero_thundergiant", "ehero_wildedge"],
+        extra: ["ehero_flamewingman", "ehero_flamewingman", "ehero_thundergiant", "ehero_thundergiant", "ehero_wildedge", "ehero_wildedge"],
     },
     machine: {
         main: [
-            "cyberdragon", "cyberdragon", "cyberdragon", "jinzo", "jinzo",
-            "ancientgeargolem", "ancientgeargolem",
+            // 低星怪 25
             "greengadget", "greengadget", "redgadget", "redgadget", "yellowgadget", "yellowgadget",
-            "mechanicalchaser", "mechanicalchaser", "xheadcannon", "xheadcannon",
-            "reflectbounder", "reflectbounder", "goblin", "goblin", "cannonsoldier",
-            "witch", "sangan", "kuriboh",
-            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "gracefulcharity",
-            "harpiesfeatherduster", "gianttrunade", "prematureburial", "axeofdespair", "axeofdespair", "magepower", "united",
-            "smashing", "fissure", "changeofheart",
+            "mechanicalchaser", "mechanicalchaser", "xheadcannon", "xheadcannon", "reflectbounder", "reflectbounder",
+            "proto", "proto", "proto", "goblin", "goblin", "goblin",
+            "cannonsoldier", "witch", "sangan", "kuriboh", "kuriboh", "gemini", "gemini",
+            // 高星怪 8
+            "cyberdragon", "cyberdragon", "cyberdragon", "jinzo", "jinzo",
+            "ancientgeargolem", "ancientgeargolem", "ancientgeargolem",
+            // 魔法 17
+            "powerbond", "powerbond", "cyberrepair", "cyberrepair",
+            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "potofgreed", "gracefulcharity",
+            "changeofheart", "swords", "axeofdespair", "axeofdespair", "magepower", "united",
+            // 陷阱 10
             "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder", "torrential", "bottomless",
-            "solemnjudgment", "ringofdestruction", "dusttornado", "trapstun", "swords",
+            "solemnjudgment", "ringofdestruction", "dusttornado", "trapstun",
         ],
-        extra: [],
+        extra: ["cybertwin", "cybertwin", "cybertwin"],
     },
-    /* ---------- 青眼白龙（海马濑人） ---------- */
     blueeyes: {
         main: [
-            "blueyes", "blueyes", "blueyes", "kaibaman", "kaibaman", "kaibaman",
-            "lordofdragons", "lordofdragons", "flute", "flute",
-            "burststream", "burststream", "stamping",
-            "gemini", "gemini", "lajinn", "lajinn", "celtic", "battleox",
-            "polymerization", "polymerization", "potofgreed", "potofgreed", "gracefulcharity",
-            "monsterreborn", "raigeki", "darkhole", "mst", "changeofheart", "swords",
-            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder",
-            "negateattack", "waboku", "waboku", "torrential", "bottomless", "callofhaunted",
+            // 低星怪 24
+            "kaibaman", "kaibaman", "kaibaman", "lordofdragons", "lordofdragons",
+            "gemini", "gemini", "lajinn", "lajinn", "celtic", "celtic", "battleox",
+            "witch", "sangan", "kuriboh", "kuriboh", "stone", "stone",
+            "mysticalelf", "mysticalelf", "maneater", "magicianoffaith", "exiled", "sinisterserpent",
+            // 高星怪 8
+            "blueyes", "blueyes", "blueyes", "summonedskull", "summonedskull", "gaia", "darkmagician", "darkmagician",
+            // 魔法 18
+            "flute", "flute", "ancientrules", "ancientrules", "silvercry", "silvercry",
+            "burststream", "burststream", "stamping", "polymerization", "polymerization",
+            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "potofgreed", "gracefulcharity",
+            // 陷阱 10
+            "championsvigilance", "championsvigilance",
+            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder", "negateattack", "waboku",
         ],
         extra: ["blueyes_ultimate", "blueyes_ultimate"],
     },
-    /* ---------- 黑魔术师（武藤游戏） ---------- */
     darkmagician: {
         main: [
-            "darkmagician", "darkmagician", "darkmagician",
+            // 低星怪 25
             "darkmagiciangirl", "darkmagiciangirl", "skilledwhitemagician", "skilledwhitemagician",
-            "gemini", "gemini", "mysticalelf", "mysticalelf", "celtic",
-            "thousandknives", "thousandknives", "darkmagicattack", "curtain", "curtain",
+            "gemini", "gemini", "gemini", "mysticalelf", "mysticalelf", "celtic", "celtic",
+            "magicianoffaith", "magicianoffaith", "oldvindictive", "oldvindictive",
+            "witch", "witch", "sangan", "kuriboh", "exiled", "maneater",
+            "stone", "battleox", "lajinn", "axe",
+            // 高星怪 8
+            "darkmagician", "darkmagician", "darkmagician", "summonedskull", "summonedskull", "gaia", "gaia", "blueyes",
+            // 魔法 17
+            "thousandknives", "thousandknives", "darkmagicattack", "curtain", "curtain", "magicaldimension", "magicaldimension",
+            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "potofgreed",
+            "gracefulcharity", "changeofheart", "swords", "fissure",
+            // 陷阱 10
             "magiciancircle", "magiciancircle",
-            "potofgreed", "potofgreed", "gracefulcharity", "monsterreborn",
-            "raigeki", "darkhole", "mst", "changeofheart", "swords",
-            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder", "magiccylinder",
-            "negateattack", "waboku", "waboku", "torrential", "bottomless", "callofhaunted",
+            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder", "negateattack", "waboku",
         ],
         extra: [],
     },
-    /* ---------- 真红眼黑龙（城之内克也） ---------- */
     redeyes: {
         main: [
-            "redeyes", "redeyes", "redeyes", "meteor", "meteor",
-            "battleox", "battleox", "goblin", "goblin", "gemini", "lajinn", "celtic", "speardragon",
-            "polymerization", "polymerization", "infernofire", "infernofire", "metalmorph", "metalmorph",
-            "potofgreed", "potofgreed", "gracefulcharity", "monsterreborn",
-            "raigeki", "darkhole", "mst", "changeofheart", "swords",
+            // 低星怪 25
+            "meteor", "meteor", "meteor", "battleox", "battleox", "goblin", "goblin",
+            "gemini", "gemini", "lajinn", "lajinn", "celtic", "celtic", "speardragon", "speardragon",
+            "witch", "sangan", "kuriboh", "kuriboh", "exiled", "maneater", "stone",
+            "mysticalelf", "magicianoffaith", "axe", "silverfang",
+            // 高星怪 8
+            "redeyes", "redeyes", "redeyes", "summonedskull", "summonedskull", "gaia", "blueyes",
+            // 魔法 17
+            "redeyesfusion", "redeyesfusion", "polymerization", "polymerization",
+            "infernofire", "infernofire", "metalmorph", "metalmorph",
+            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "potofgreed",
+            "gracefulcharity", "changeofheart", "swords",
+            // 陷阱 10
             "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder",
-            "negateattack", "waboku", "waboku", "torrential", "bottomless", "callofhaunted",
+            "negateattack", "waboku", "waboku", "callofhaunted",
         ],
         extra: ["meteorb", "meteorb"],
     },
-    /* ---------- 神鹰女郎（孔雀舞） ---------- */
     harpie: {
         main: [
+            // 低星怪 25
             "harpylady", "harpylady", "harpylady", "harpiesisters", "harpiesisters",
-            "harpiespet", "harpiespet", "elegantegotist", "elegantegotist",
+            "harpiespet", "harpiespet", "celtic", "celtic", "battleox", "battleox",
+            "gemini", "gemini", "lajinn", "lajinn", "axe", "axe",
+            "witch", "sangan", "kuriboh", "kuriboh", "exiled", "mysticalelf", "magicianoffaith", "maneater", "axe",
+            // 高星怪 7
+            "summonedskull", "summonedskull", "gaia", "darkmagician", "blueyes", "redeyes",
+            // 魔法 18
+            "elegantegotist", "elegantegotist", "huntingground", "huntingground",
             "harpiesfeatherduster", "harpiesfeatherduster",
-            "celtic", "celtic", "battleox", "lajinn", "gemini",
-            "potofgreed", "potofgreed", "gracefulcharity", "monsterreborn",
-            "raigeki", "darkhole", "mst", "changeofheart", "swords", "magepower", "fissure",
-            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder",
-            "negateattack", "waboku", "waboku", "torrential", "bottomless", "callofhaunted", "dusttornado",
+            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "potofgreed",
+            "gracefulcharity", "changeofheart", "swords", "magepower", "fissure", "smashing",
+            // 陷阱 10
+            "hystericparty", "hystericparty",
+            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder", "negateattack", "waboku",
         ],
         extra: [],
     },
-    /* ---------- 磁石战士（武藤游戏） ---------- */
     magnet: {
         main: [
-            "magnet_alpha", "magnet_alpha", "magnet_alpha",
-            "magnet_beta", "magnet_beta", "magnet_beta",
-            "magnet_gamma", "magnet_gamma", "magnet_gamma",
-            "valkyrion", "valkyrion", "valkyrion",
-            "stone", "stone", "goblin", "goblin", "battleox", "gemini",
-            "potofgreed", "potofgreed", "gracefulcharity", "monsterreborn",
-            "raigeki", "darkhole", "mst", "changeofheart", "swords", "fissure",
+            // 低星怪 25
+            "magnet_alpha", "magnet_alpha", "magnet_alpha", "magnet_beta", "magnet_beta", "magnet_beta",
+            "magnet_gamma", "magnet_gamma", "magnet_gamma", "magnet_delta", "magnet_delta", "magnet_delta",
+            "stone", "stone", "stone", "goblin", "goblin", "battleox", "battleox",
+            "gemini", "gemini", "witch", "sangan", "kuriboh", "exiled", "axe",
+            // 高星怪 7
+            "valkyrion", "valkyrion", "valkyrion", "summonedskull", "gaia", "darkmagician", "blueyes",
+            // 魔法 18
+            "polymerization", "polymerization",
+            "raigeki", "darkhole", "mst", "mst", "monsterreborn", "potofgreed", "potofgreed",
+            "gracefulcharity", "changeofheart", "swords", "fissure", "smashing", "axeofdespair", "magepower", "united",
+            // 陷阱 10
             "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder",
-            "negateattack", "waboku", "waboku", "torrential", "bottomless", "callofhaunted",
+            "negateattack", "waboku", "waboku", "callofhaunted",
+        ],
+        extra: [],
+    },
+    warrior: {
+        main: [
+            // 低星怪 25
+            "maraudingcaptain", "maraudingcaptain", "maraudingcaptain", "warriordai", "warriordai",
+            "amazoness", "amazoness", "commandknight", "commandknight",
+            "exiled", "exiled", "celtic", "celtic", "axe", "axe", "gemini", "gemini",
+            "battleox", "battleox", "witch", "sangan", "kuriboh", "magicianoffaith", "mysticalelf", "axe",
+            // 高星怪 8
+            "swordstalker", "swordstalker", "gaia", "gaia", "summonedskull", "summonedskull", "darkmagician", "blueyes",
+            // 魔法 17
+            "reinforcement", "reinforcement", "warriorreturning", "warriorreturning", "aforces",
+            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "potofgreed",
+            "gracefulcharity", "changeofheart", "swords", "united", "magepower", "axeofdespair",
+            // 陷阱 10
+            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder",
+            "negateattack", "waboku", "waboku", "callofhaunted",
+        ],
+        extra: [],
+    },
+    zombie: {
+        main: [
+            // 低星怪 25
+            "zombiemaster", "zombiemaster", "zombiemaster", "spiritreaper", "spiritreaper", "spiritreaper",
+            "patrician", "patrician", "mysticalelf", "mysticalelf", "lajinn", "lajinn", "gemini", "gemini",
+            "witch", "witch", "sangan", "sangan", "kuriboh", "kuriboh", "maneater", "maneater",
+            "oldvindictive", "exiled", "magicianoffaith",
+            // 高星怪 8
+            "vampirelord", "vampirelord", "ryukokki", "ryukokki", "despair", "despair",
+            "summonedskull", "summonedskull",
+            // 魔法 17
+            "bookoflife", "bookoflife", "bookoflife", "mummycall", "mummycall",
+            "raigeki", "darkhole", "mst", "monsterreborn", "potofgreed", "potofgreed",
+            "gracefulcharity", "changeofheart", "swords", "fissure", "smashing", "axeofdespair",
+            // 陷阱 10
+            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder",
+            "negateattack", "waboku", "waboku", "callofhaunted",
+        ],
+        extra: [],
+    },
+    fairy: {
+        main: [
+            // 低星怪 25
+            "dunames", "dunames", "dunames", "shiningabyss", "shiningabyss", "mudora", "mudora",
+            "hoshiningen", "hoshiningen", "hoshiningen", "mars", "mars",
+            "mysticalelf", "mysticalelf", "mysticalelf", "gemini", "gemini", "magicianoffaith", "magicianoffaith",
+            "kuriboh", "kuriboh", "witch", "sangan", "exiled", "oldvindictive",
+            // 高星怪 7
+            "gaia", "summonedskull", "summonedskull", "darkmagician", "darkmagician", "blueyes", "redeyes",
+            // 魔法 18
+            "raigeki", "darkhole", "mst", "mst", "monsterreborn", "potofgreed", "potofgreed",
+            "gracefulcharity", "changeofheart", "swords", "fissure", "smashing",
+            "axeofdespair", "axeofdespair", "magepower", "united", "blackpendant", "shieldsword",
+            // 陷阱 10
+            "solemnwishes", "solemnwishes",
+            "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu", "magiccylinder", "negateattack", "waboku",
         ],
         extra: [],
     },
@@ -950,7 +1332,7 @@ function buildDeck(preset) {
     for (const id of Object.keys(counts))
         for (let i = 0; i < counts[id]; i++)
             deck.push(id);
-    return deck.slice(0, 40);
+    return deck.slice(0, 60); // 卡组上限 60 张
 }
 function buildExtra(preset) {
     const def = DECK_PRESETS[preset || "classic"];

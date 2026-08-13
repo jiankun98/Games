@@ -1457,6 +1457,25 @@ class Duel {
         return ok;
     }
     /* ===================== 战斗 ===================== */
+    // 攻击可用性查询（UI 战斗引导用）：返回 { ok, reason }，与 declareAttack 的守卫保持一致
+    attackBlock(zoneIdx) {
+        const s = this.state;
+        if (s.turnPlayer !== "me" || s.phase !== "battle" || s.pending || s.resolving)
+            return { ok: false, reason: "不可攻击" };
+        const p = this.cur();
+        const m = p.monsterZone[zoneIdx];
+        if (!m)
+            return { ok: false, reason: "无怪兽" };
+        if (m.faceDown || m.position !== "atk")
+            return { ok: false, reason: "非攻击表示" };
+        if (p.attacked[zoneIdx])
+            return { ok: false, reason: "本回合已攻击" };
+        if (s.turn === 1 && s.turnPlayer === "me")
+            return { ok: false, reason: "先手首回合不能攻击" };
+        if (this.curOpp().attackLockTurns > 0)
+            return { ok: false, reason: "受光之护封剑影响" };
+        return { ok: true, reason: "" };
+    }
     async declareAttack(zoneIdx, targetIdx) {
         const s = this.state;
         if (s.turnPlayer !== "me" || s.phase !== "battle" || s.pending || s.resolving)

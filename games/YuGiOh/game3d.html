@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>游戏王·决斗对战（3D）</title>
-    <script src="./cards.js"></script>
-    <script src="./index.js"></script>
-    <script src="./ai-player.js"></script>
+    <script src="./cards.js?v=2"></script>
+    <script src="./index.js?v=2"></script>
+    <script src="./ai-player.js?v=2"></script>
     <style>
       :root {
         --bg: #0b0e16;
@@ -79,8 +79,6 @@
       .lp-fill { height: 100%; transition: width 0.6s cubic-bezier(.2,.8,.2,1); }
       .lp-fill.me { background: linear-gradient(90deg, #1e5fa0, var(--lp-me)); }
       .lp-fill.ai { background: linear-gradient(90deg, #8a2f2f, var(--lp-ai)); }
-      .lp-bar.flash { animation: lpFlash 0.5s ease; }
-      @keyframes lpFlash { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 18px rgba(229,72,77,0.9); } }
       .lp-val { font-size: 13px; font-weight: 700; width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
 
       /* 3D 舞台 */
@@ -100,16 +98,17 @@
       /* ============ 回合控制条（底部） ============ */
       .turn-bar {
         flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 10px;
-        padding: 6px 14px; border-top: 1px solid var(--border);
+        height: 52px; box-sizing: border-box; padding: 0 14px; border-top: 1px solid var(--border);
         background: rgba(16,20,32,0.88); border-radius: 0 0 12px 12px;
       }
-      .turn-bar .tb-phase { display: flex; flex-direction: column; gap: 1px; min-width: 200px; }
-      .turn-bar .tb-phase > div:first-child { font-size: 13px; font-weight: 700; color: var(--lp-me); letter-spacing: 1px; white-space: nowrap; }
-      .turn-bar .tb-tip { font-size: 11px; color: var(--dim); white-space: nowrap; letter-spacing: 0.5px; }
+      .turn-bar .tb-phase { display: flex; flex-direction: column; gap: 1px; width: 248px; }
+      .turn-bar .tb-phase > div:first-child { font-size: 13px; font-weight: 700; color: var(--lp-me); letter-spacing: 1px; white-space: nowrap; line-height: 20px; height: 20px; }
+      .turn-bar .tb-tip { font-size: 11px; color: var(--dim); white-space: nowrap; letter-spacing: 0.5px; overflow: hidden; text-overflow: ellipsis; line-height: 15px; height: 15px; }
       .turn-bar.ai .tb-phase > div:first-child { color: var(--lp-ai); }
       .tb-btn {
-        border: none; border-radius: 18px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
+        border: none; border-radius: 18px; padding: 0 18px; height: 37px; font-size: 13px; font-weight: 700; cursor: pointer;
         transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease; white-space: nowrap;
+        min-width: 116px; text-align: center; /* 固定宽高：文案切换（含 emoji 字形高度差异）不引起布局抖动 */
       }
       .tb-btn.primary { background: linear-gradient(180deg, var(--accent), #c89432); color: #1a1208; box-shadow: 0 3px 12px rgba(230,178,74,0.4); }
       .tb-btn.ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
@@ -127,6 +126,48 @@
       .mode-bar.show { display: flex; }
       .mode-bar .lbl { font-size: 12px; color: var(--dim); padding: 0 8px; }
       .mode-bar .btn { padding: 6px 14px; font-size: 12px; }
+
+      /* ============ 卡牌引导 chip（战斗攻击 / 祭品已选） ============ */
+      .card-chip {
+        position: absolute; z-index: 4; transform: translate(-50%, -100%);
+        padding: 5px 13px; border-radius: 14px; font-size: 12px; font-weight: 700; white-space: nowrap;
+        pointer-events: auto; animation: popIn 0.16s ease;
+      }
+      .card-chip.atk {
+        background: linear-gradient(135deg, #ffd24a, #e6a23c); color: #221a08; cursor: pointer;
+        box-shadow: 0 4px 14px rgba(255,190,80,0.55); border: 1px solid rgba(255,255,255,0.4);
+      }
+      .card-chip.atk:hover { filter: brightness(1.1); }
+      .card-chip.dim {
+        background: rgba(20,26,40,0.92); color: #93a0b8; border: 1px solid var(--border);
+        cursor: not-allowed;
+      }
+      .card-chip.sel {
+        background: #ffd24a; color: #221a08; pointer-events: none;
+        box-shadow: 0 4px 14px rgba(255,210,74,0.6);
+      }
+
+      /* ============ 攻击选择悬浮面板（居中，远离回合条防误点） ============ */
+      .atk-overlay {
+        position: fixed; left: 50%; top: 46%; transform: translate(-50%, -50%); z-index: 60;
+        display: none; flex-direction: column; align-items: center; gap: 12px; pointer-events: none;
+      }
+      .atk-overlay.show { display: flex; }
+      .atk-overlay .atk-title {
+        font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: 2px;
+        background: rgba(16,20,32,0.85); border: 1px solid var(--accent); border-radius: 18px; padding: 7px 20px;
+      }
+      .atk-overlay .atk-hint {
+        font-size: 13px; color: #cdd3dc; background: rgba(16,20,32,0.85); border: 1px solid var(--border);
+        border-radius: 16px; padding: 8px 18px;
+      }
+      .atk-overlay .btn { pointer-events: auto; }
+      .atk-overlay .btn.big {
+        font-size: 20px; font-weight: 700; padding: 14px 34px; border-radius: 18px;
+        background: linear-gradient(135deg, #ff6b4a, #e5484d); color: #fff; border: 1px solid rgba(255,255,255,0.35);
+        box-shadow: 0 10px 32px rgba(229,72,77,0.55); animation: popIn 0.18s ease;
+      }
+      .atk-overlay .btn.big:hover { filter: brightness(1.1); transform: scale(1.04); }
 
       /* ============ 连锁横幅 ============ */
       .chain-banner {
@@ -263,38 +304,26 @@
       }
       .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
       .screen-flash { position: fixed; inset: 0; pointer-events: none; z-index: 90; opacity: 0; }
-      .screen-flash.on { animation: scrFlash 0.4s ease; }
-      @keyframes scrFlash { 0% { opacity: 0; } 20% { opacity: 0.5; } 100% { opacity: 0; } }
 
       .fx { position: fixed; pointer-events: none; z-index: 95; }
       .fx-dmg { transform: translate(-50%, -50%); }
       .fx-dmg b.fx-dmg-txt {
         display: block; font-size: 30px; font-weight: 900; color: #ff6b6b; font-style: normal;
-        text-shadow: 0 2px 10px rgba(0,0,0,0.9); animation: fxDmgUp 1s ease-out forwards; transform: translate(-50%, -50%);
+        text-shadow: 0 2px 10px rgba(0,0,0,0.9); transform: translate(-50%, -50%);
       }
       .fx-dmg b.small { font-size: 19px; color: #ff9d9d; }
-      @keyframes fxDmgUp {
-        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
-        15% { opacity: 1; transform: translate(-50%, -62%) scale(1.2); }
-        100% { opacity: 0; transform: translate(-50%, -170%) scale(1); }
-      }
       .fx-burst-txt {
         font-size: 32px; font-weight: 900; color: #ffd24a; white-space: nowrap;
-        text-shadow: 0 0 16px rgba(255,120,40,0.9); transform: translate(-50%, -50%); animation: fxBurstPop 0.55s ease-out forwards;
-      }
-      @keyframes fxBurstPop {
-        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
-        25% { opacity: 1; transform: translate(-50%, -50%) scale(1.35); }
-        100% { opacity: 0; transform: translate(-50%, -50%) scale(1.55); }
+        text-shadow: 0 0 16px rgba(255,120,40,0.9); transform: translate(-50%, -50%);
       }
       .fx-act-banner, .fx-turn-banner { left: 0; right: 0; text-align: center; }
-      .fx-act-banner { top: 30%; animation: fxBannerIn 1s ease forwards; }
+      .fx-act-banner { top: 30%; }
       .fx-act-txt {
         display: inline-block; background: rgba(10,14,24,0.94); border: 1px solid var(--accent); border-radius: 12px;
         padding: 8px 20px; font-size: 16px; font-weight: 700; color: var(--accent);
         box-shadow: 0 0 26px rgba(230,178,74,0.35);
       }
-      .fx-turn-banner { top: 34%; animation: fxBannerIn 1.3s ease forwards; }
+      .fx-turn-banner { top: 34%; }
       .turn-banner-inner {
         display: inline-block; padding: 12px 36px; border-radius: 16px; background: rgba(10,14,24,0.94);
         border: 2px solid var(--accent); box-shadow: 0 0 44px rgba(230,178,74,0.4); position: relative; overflow: hidden;
@@ -309,7 +338,7 @@
       .turn-banner-inner span { font-size: 13px; color: var(--dim); letter-spacing: 4px; }
       .turn-banner-inner.me b { color: var(--lp-me); }
       .turn-banner-inner.ai b { color: var(--lp-ai); }
-      .fx-phase-banner { left: 0; right: 0; top: 26%; text-align: center; animation: fxBannerIn 1.5s ease forwards; }
+      .fx-phase-banner { left: 0; right: 0; top: 26%; text-align: center; }
       .fx-phase-inner {
         display: inline-block; background: rgba(16,20,32,0.93); border: 1px solid var(--lp-me); border-radius: 12px;
         padding: 7px 22px; box-shadow: 0 0 22px rgba(74,163,255,0.28);
@@ -318,20 +347,6 @@
       .fx-phase-inner span { display: block; color: #b8c2d8; font-size: 12px; margin-top: 3px; letter-spacing: 1px; }
       .fx-phase-inner.ai { border-color: var(--lp-ai); box-shadow: 0 0 22px rgba(229,72,77,0.28); }
       .fx-phase-inner.ai b { color: var(--lp-ai); }
-      @keyframes fxBannerIn {
-        0% { opacity: 0; transform: translateY(-14px); }
-        14% { opacity: 1; transform: translateY(0); }
-        78% { opacity: 1; }
-        100% { opacity: 0; transform: translateY(8px); }
-      }
-      .board.shake { animation: boardShake 0.4s ease; }
-      @keyframes boardShake {
-        0%, 100% { transform: none; }
-        20% { transform: translateX(-6px); }
-        40% { transform: translateX(6px); }
-        60% { transform: translateX(-4px); }
-        80% { transform: translateX(4px); }
-      }
     </style>
   </head>
   <body>
@@ -372,6 +387,7 @@
     </div>
 
     <div class="mode-bar" id="mode-bar"></div>
+    <div class="atk-overlay" id="atk-overlay"></div>
     <div class="chain-banner" id="chain-banner"></div>
     <div class="log-panel" id="log-panel">
       <header><div style="font-size:14px;font-weight:700;">对局日志</div><div class="spacer" style="flex:1;"></div><div class="icon-btn" id="btn-log-close">✕</div></header>
@@ -382,10 +398,14 @@
     <div class="screen-flash" id="screen-flash"></div>
 
     <script type="importmap">
-      { "imports": { "three": "../../node_modules/three/build/three.module.js" } }
+      { "imports": {
+        "three": "../../node_modules/three/build/three.module.js",
+        "animejs": "../../node_modules/animejs/dist/modules/index.js"
+      } }
     </script>
     <script type="module">
       import * as THREE from "three";
+      import { animate, cubicBezier } from "animejs";
 
       "use strict";
       const $ = (id) => document.getElementById(id);
@@ -482,46 +502,73 @@
         ctx.arcTo(x, y, x + w, y, r);
         ctx.closePath();
       }
-      // 名字条 + 数值条叠加层（程序卡面与立绘卡面共用，按画布尺寸等比缩放）
+      // 卡面 UI 叠加层（程序卡面与立绘卡面共用，按画布尺寸等比缩放，官方布局风格：
+      // 顶部名牌+属性徽章 → 星级/魔陷行 → 立绘 → 底部攻守框）
       function drawCardOverlay(ctx, card, w, h) {
         const isMon = card.type === "monster";
-        // 顶部名字条
-        const nbh = Math.round(h * 0.11);
-        const nb = ctx.createLinearGradient(0, 0, 0, nbh);
-        nb.addColorStop(0, "rgba(0,0,0,0.75)"); nb.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = nb;
-        ctx.fillRect(0, 0, w, nbh);
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold " + Math.round(w * 0.075) + "px 'PingFang SC','Microsoft YaHei',sans-serif";
-        ctx.textAlign = "left"; ctx.textBaseline = "top";
-        ctx.fillText(card.name, Math.round(w * 0.03), Math.round(h * 0.012));
+        const u = w / 512; // 以 512 宽为基准等比缩放
+        const barcode = (x, y, bw, bh, r, fill, stroke) => {
+          ctx.fillStyle = fill || "rgba(10,12,18,0.82)";
+          roundRect(ctx, x, y, bw, bh, r); ctx.fill();
+          if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, u * 1.6); roundRect(ctx, x, y, bw, bh, r); ctx.stroke(); }
+        };
+        // 顶部名牌
+        const nbW = w * 0.64, nbH = h * 0.058;
+        barcode(w * 0.02, h * 0.012, nbW, nbH, 4 * u, "rgba(10,12,18,0.8)", "rgba(212,176,106,0.55)");
+        ctx.fillStyle = "#f5eed6";
+        ctx.font = "bold " + Math.round(w * 0.058) + "px 'PingFang SC','Microsoft YaHei',sans-serif";
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.fillText(card.name, w * 0.035, h * 0.012 + nbH / 2 + 1);
         if (isMon) {
+          // 属性徽章（右上圆牌）
+          const cx = w * 0.925, cy = h * 0.038, r = w * 0.055;
+          ctx.fillStyle = "rgba(245,238,214,0.95)";
+          ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "rgba(212,176,106,0.8)"; ctx.lineWidth = Math.max(1, u * 1.4);
+          ctx.stroke();
+          ctx.fillStyle = "#2a2213";
+          ctx.font = Math.round(r * 1.15) + "px serif";
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(ATTR_EM[card.attribute] || "?", cx, cy + 1);
+          // 星级（徽章下方，右对齐；超过 5 星折行）
           ctx.textAlign = "right";
-          ctx.fillStyle = "rgba(255,255,255,0.9)";
-          ctx.font = Math.round(w * 0.06) + "px serif";
-          ctx.fillText((ATTR_EM[card.attribute] || "") + " " + "★".repeat(Math.min(card.level || 0, 12)), w - Math.round(w * 0.024), Math.round(h * 0.042));
-        }
-        // 底部数值条
-        const fbh = Math.round(h * 0.10);
-        const fb = ctx.createLinearGradient(0, h - fbh, 0, h);
-        fb.addColorStop(0, "rgba(0,0,0,0)"); fb.addColorStop(1, "rgba(0,0,0,0.82)");
-        ctx.fillStyle = fb;
-        ctx.fillRect(0, h - fbh, w, fbh);
-        ctx.font = "bold " + Math.round(w * 0.075) + "px 'SF Mono',Consolas,monospace";
-        ctx.textBaseline = "middle";
-        if (isMon) {
-          const st = optsStats(card);
-          ctx.textAlign = "left";
-          ctx.fillStyle = "#ffe08a";
-          ctx.fillText("ATK " + st.atk, Math.round(w * 0.035), h - Math.round(fbh / 2));
-          ctx.textAlign = "right";
-          ctx.fillText("DEF " + st.def, w - Math.round(w * 0.035), h - Math.round(fbh / 2));
+          ctx.font = Math.round(w * 0.048) + "px serif";
+          ctx.fillStyle = "#ffd24a";
+          ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 3 * u;
+          const lv = Math.min(card.level || 0, 12);
+          const row1 = Math.min(lv, 5), row2 = lv - 5;
+          ctx.fillText("★".repeat(row1), w * 0.975, h * 0.105);
+          if (row2 > 0) ctx.fillText("★".repeat(row2), w * 0.975, h * 0.145);
+          ctx.shadowBlur = 0;
         } else {
+          // 魔/陷类型徽章（右上）
+          const isSpell = card.type === "spell";
+          const bw = w * 0.2, bh = h * 0.052;
+          barcode(w * 0.78, h * 0.014, bw, bh, 4 * u, isSpell ? "rgba(47,174,99,0.92)" : "rgba(164,95,220,0.92)", null);
+          ctx.fillStyle = "#fff";
+          ctx.font = "bold " + Math.round(w * 0.05) + "px 'PingFang SC','Microsoft YaHei',sans-serif";
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(isSpell ? "魔法" : "陷阱", w * 0.78 + bw / 2, h * 0.014 + bh / 2 + 1);
+          // 第二行：魔陷种类
           ctx.textAlign = "left";
-          ctx.fillStyle = "rgba(255,255,255,0.85)";
-          ctx.fillText(card.type === "spell" ? "魔法" : "陷阱", Math.round(w * 0.035), h - Math.round(fbh / 2));
+          ctx.fillStyle = "#ffd24a";
+          ctx.font = "bold " + Math.round(w * 0.05) + "px 'PingFang SC','Microsoft YaHei',sans-serif";
+          ctx.fillText((card.subtype || "") + (isSpell ? "魔法" : "陷阱"), w * 0.03, h * 0.105);
+        }
+        if (isMon) {
+          // 底部攻守框
+          const st = optsStats(card);
+          const bbH = h * 0.06, bbY = h * 0.925, bbW = w * 0.44;
+          ctx.font = "bold " + Math.round(w * 0.056) + "px 'SF Mono',Consolas,monospace";
+          ctx.textBaseline = "middle";
+          barcode(w * 0.02, bbY, bbW, bbH, 4 * u, "rgba(10,12,18,0.85)", "rgba(255,210,74,0.65)");
+          ctx.textAlign = "left";
+          ctx.fillStyle = "#ffd24a";
+          ctx.fillText("ATK " + st.atk, w * 0.045, bbY + bbH / 2 + 1);
+          barcode(w * 0.54, bbY, bbW, bbH, 4 * u, "rgba(10,12,18,0.85)", "rgba(120,180,255,0.65)");
           ctx.textAlign = "right";
-          ctx.fillText(card.subtype || "", w - Math.round(w * 0.035), h - Math.round(fbh / 2));
+          ctx.fillStyle = "#9cc4ff";
+          ctx.fillText("DEF " + st.def, w * 0.955, bbY + bbH / 2 + 1);
         }
       }
       // 游戏王卡背（本地图片，同源无污染；未加载完成前用程序卡背回退）
@@ -589,9 +636,12 @@
         const tex = new THREE.CanvasTexture(cv);
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        tex.minFilter = THREE.LinearFilter;   // 无 mipmap 线性过滤：卡面缩放更锐利
+        tex.generateMipmaps = false;
         return tex;
       }
       const artCache = new Map(); // uid -> Texture | null（立绘纹理，null=未就绪走程序卡面）
+      const artImg = new Map();   // uid -> Image（保留原图，数值变化时可重绘卡面）
       const ART_ORIGIN = "https://images.ygoprodeck.com/images/cards_cropped/";
       function artUrl(password) {
         // ygoprodeck 裁剪图按数字 id 命名（无前导零），8 位卡密需去掉前导零拼接
@@ -613,6 +663,8 @@
         const tex = new THREE.CanvasTexture(cv);
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        tex.minFilter = THREE.LinearFilter;   // 无 mipmap 线性过滤：卡面缩放更锐利
+        tex.generateMipmaps = false;
         return tex;
       }
       function ensureArt(card) {
@@ -622,6 +674,7 @@
         img.onload = () => {
           // decode() 确保像素数据就绪，避免 drawImage/上传拿到空白
           img.decode().then(() => {
+            artImg.set(card.uid, img); // 保留原图，供数值变化时重绘
             artCache.set(card.uid, buildArtTexture(img, card));
             refreshCardTexture(card.uid);
           }).catch(() => { artCache.set(card.uid, null); });
@@ -668,6 +721,7 @@
       const cardMeshes = new Map(); // uid -> Group
       const pileMeshes = new Map(); // key -> Group（卡组/墓地/额外/除外/场地）
       const pileTags = new Map(); // key -> DOM 标签
+      const chipEls = new Map(); // uid(+后缀) -> DOM 引导 chip（战斗攻击/祭品已选）
 
       const sideMat = new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: 0.6 });
       function makeCard3D() {
@@ -706,6 +760,12 @@
       const HAND_SCALE = 0.62;  // 手牌缩放（比场上小）
       const HAND_PITCH = -0.42; // 手牌绕X后仰，让牌面正对俯视镜头（修正“朝下”感）
       const FIELD_SCALE = 1.15; // 场上卡牌缩放
+      // 场上卡牌后仰角：按排深计算俯视角度的 65% 补偿（离玩家越近俯视越陡、后仰越大）
+      function fieldPitch(who, kind) {
+        const z = Math.abs(slotPos(who, kind, 0).z);
+        const dy = 5.0 - CARD_H / 2 * FIELD_SCALE; // 相机高度 - 卡牌中心高度
+        return -Math.atan(dy / (9.0 - z)) * 0.65;
+      }
       function slotPos(who, kind, idx) {
         const S = 1.9;
         let x, z;
@@ -727,6 +787,12 @@
       }
 
       /* ===================== 状态同步 ===================== */
+      const STICKY_SCALE = 0.68; // 常驻魔陷（装备/永续/场地）在场时的缩小比例
+      function isStickyST(card) {
+        return !!card && (card.type === "spell" || card.type === "trap") &&
+          (card.subtype === "装备" || card.subtype === "永续" || card.subtype === "场地");
+      }
+      const linkedUids = new Set(); // 常驻魔陷关联的怪兽 uid（渲染循环抬升用）
       function sync3D() {
         const s = duel && duel.state;
         if (!s) return;
@@ -759,13 +825,47 @@
           if (p.extra.length) setPile("extra", who, p.extra.length, p.extra[0] || null);
           if (p.banished.length) setPile("banished", who, p.banished.length, p.banished[p.banished.length - 1] || null);
         }
-        // 模式高亮（攻击/祭品目标）
+        // 常驻魔陷关联怪兽（装备目标 / 链接 / 种族场地buff），用于金色高亮与抬升
+        linkedUids.clear();
+        for (const who of ["me", "ai"]) {
+          const p = s[who];
+          for (const c of [...p.spellZone, p.fieldZone]) {
+            if (!c || c.faceDown) continue;
+            if (c.equipTarget) linkedUids.add(c.equipTarget);
+            if (c.linkPartner) linkedUids.add(c.linkPartner);
+            if (c.effect && c.effect.races) {
+              for (const key of ["me", "ai"])
+                for (const m of s[key].monsterZone)
+                  if (m && c.effect.races.includes(m.race)) linkedUids.add(m.uid);
+            }
+          }
+        }
+        // 模式高亮：攻击者（蓝）/可选目标（红）/祭品候选（浅金）/祭品已选（金）
         for (const [uid, g] of cardMeshes) {
           const slot = g.userData.slot;
-          const glow =
-            (mode === "attack" && slot && slot.who === "ai" && slot.kind === "monster") ||
-            (mode === "tribute" && slot && slot.who === "me" && slot.kind === "monster" && !tributePool.includes(slot.idx));
-          g.userData.frontMat.color.set(glow ? 0xffcc66 : 0xffffff);
+          let color = 0xffffff;
+          if (mode === "attack") {
+            if (slot && slot.who === "me" && slot.kind === "monster" && slot.idx === attackZone) color = 0x8fc2ff;
+            else if (slot && slot.who === "ai" && slot.kind === "monster") color = 0xff9d8a;
+          } else if (mode === "tribute" && slot && slot.who === "me" && slot.kind === "monster") {
+            color = tributePool.includes(slot.idx) ? 0xffd24a : 0xffcc66;
+          } else if (g.userData.card && linkedUids.has(g.userData.card.uid)) {
+            color = 0xffd24a; // 常驻魔陷关联怪兽：金色高亮
+          }
+          g.userData.frontMat.color.set(color);
+        }
+        // 攻守数值同步：装备/场地/攻守互换等改变数值时，重绘卡面纹理（攻击结算与菜单始终取实时值）
+        for (const [uid, g] of cardMeshes) {
+          const card = g.userData.card;
+          if (!card || card.type !== "monster" || !g.userData.faceUp || g.userData.dying) continue;
+          let st;
+          try { st = duel.stats(card); } catch (e) { continue; }
+          const prev = g.userData.lastStats;
+          if (prev && prev.atk === st.atk && prev.def === st.def) continue;
+          g.userData.lastStats = { atk: st.atk, def: st.def };
+          const img = artImg.get(card.uid);
+          if (img) artCache.set(card.uid, buildArtTexture(img, card)); // 用原图按新数值重绘立绘卡面
+          refreshCardTexture(card.uid);
         }
       }
       function placeCard3D(card, slot) {
@@ -779,16 +879,18 @@
           g = makeCard3D();
           cardMeshes.set(card.uid, g);
           scene.add(g);
-          setCard3D(g, card, faceUp, landscape, flat, 0);
+          setCard3D(g, card, faceUp, landscape, flat, slot.kind === "hand" ? 0 : fieldPitch(slot.who, slot.kind));
           g.userData.targetRot.set(slot.kind === "hand" ? HAND_PITCH : g.userData.targetRot.x, handRotY, g.userData.targetRot.z);
           // 落卡动画（从槽位上方落下）
           g.position.set(slotPos(slot.who, slot.kind, slot.idx).x, CARD_H / 2 + 3.5, slotPos(slot.who, slot.kind, slot.idx).z);
           g.rotation.set(0, handRotY, 0);
           g.userData.slot = slot;
-          g.userData.targetScale = slot.kind === "hand" ? HAND_SCALE : FIELD_SCALE;
+          const sticky = (slot.kind === "st" || slot.kind === "field") && faceUp && isStickyST(card);
+          g.userData.targetScale = slot.kind === "hand" ? HAND_SCALE : (sticky ? FIELD_SCALE * STICKY_SCALE : FIELD_SCALE);
           g.userData.targetPos = slot.kind === "hand" ? handPos(slot.idx, slot.handN, slot.who) : slotPos(slot.who, slot.kind, slot.idx);
           if (flat) g.userData.targetPos.y = CARD_T / 2;            // 平躺贴桌
           else if (landscape) g.userData.targetPos.y = CARD_W / 2 * FIELD_SCALE; // 横向竖立：贴桌站立
+          else if (sticky) g.userData.targetPos.y = CARD_H / 2 * FIELD_SCALE * STICKY_SCALE; // 常驻魔陷：缩小并贴桌
         } else {
           // 更新（翻面/位置变化）
           const newFaceUp = faceUp;
@@ -802,11 +904,13 @@
             if (newFaceUp) ensureArt(card);
           }
           g.userData.slot = slot;
-          g.userData.targetScale = slot.kind === "hand" ? HAND_SCALE : FIELD_SCALE;
+          const sticky = (slot.kind === "st" || slot.kind === "field") && faceUp && isStickyST(card);
+          g.userData.targetScale = slot.kind === "hand" ? HAND_SCALE : (sticky ? FIELD_SCALE * STICKY_SCALE : FIELD_SCALE);
           g.userData.targetPos = slot.kind === "hand" ? handPos(slot.idx, slot.handN, slot.who) : slotPos(slot.who, slot.kind, slot.idx);
           if (flat) g.userData.targetPos.y = CARD_T / 2;            // 平躺贴桌
           else if (landscape) g.userData.targetPos.y = CARD_W / 2 * FIELD_SCALE; // 横向竖立：贴桌站立
-          g.userData.targetRot.set(slot.kind === "hand" ? HAND_PITCH : (flat ? -Math.PI / 2 : 0), handRotY, (landscape || flat) ? Math.PI / 2 : 0);
+          else if (sticky) g.userData.targetPos.y = CARD_H / 2 * FIELD_SCALE * STICKY_SCALE; // 常驻魔陷：缩小并贴桌
+          g.userData.targetRot.set(slot.kind === "hand" ? HAND_PITCH : (flat ? -Math.PI / 2 : fieldPitch(slot.who, slot.kind)), handRotY, (landscape || flat) ? Math.PI / 2 : 0);
         }
         if (faceUp) ensureArt(card);
         if (g.userData.dying) { g.userData.dying = false; g.visible = true; }
@@ -844,54 +948,170 @@
         g.scale.y = Math.min(1 + count * 0.02, 2.2);
       }
 
-      /* ===================== 动画系统 ===================== */
-      const tweens = [];
+      /* ===================== 动画系统（anime.js 统一驱动 3D + DOM） ===================== */
+      // 说明：3D 对象用“代理状态对象”接入 anime（anime 管时间轴/缓动，onUpdate 写回 three 属性），
+      // 避免 v4.5 three 适配器对数值初始值的解析缺陷，同时天然支持贝塞尔/弹簧缓动。
+      // 缓动映射：兼容旧签名 + 贝塞尔/弹簧
+      const EASE3D = {
+        easeIn: "inQuad",
+        easeOut: "outCubic",
+        easeInOut: "inOutQuad",
+        attack: cubicBezier(0.62, -0.28, 0.74, 0.05), // 攻击突进：急冲骤停
+        recoil: "outElastic",                         // 回弹
+      };
+      const tween3DMap = new Map(); // obj -> anime Animation（同一对象新 tween 自动停止旧的）
       function tween3D(obj, to, dur, ease, onDone) {
-        const fromPos = obj.position.clone(), fromScale = obj.scale.clone(), fromRotY = obj.rotation.y;
-        tweens.push({ obj, fromPos, toPos: to.pos || fromPos, fromScale, toScale: to.scale || fromScale, fromRotY, toRotY: to.rotY != null ? to.rotY : fromRotY, t0: performance.now(), dur, ease: ease || "easeOut", onDone });
+        const prev = tween3DMap.get(obj);
+        if (prev && !prev.completed) prev.cancel();
+        if (obj.userData) obj.userData.busy = true; // 动画接管期间，阻尼趋近循环跳过该对象
+        const fromPos = obj.position.clone();
+        const fromScale = obj.scale.x;
+        const fromRotY = obj.rotation.y;
+        const toPos = to.pos || fromPos;
+        const toScale = to.scale != null ? to.scale : fromScale;
+        const toRotY = to.rotY != null ? to.rotY : fromRotY;
+        const state = { k: 0 };
+        const anim = animate(state, {
+          k: 1,
+          duration: dur,
+          ease: EASE3D[ease] || ease || "outCubic",
+          onUpdate: () => {
+            const k = state.k;
+            obj.position.lerpVectors(fromPos, toPos, k);
+            obj.scale.setScalar(fromScale + (toScale - fromScale) * k);
+            obj.rotation.y = fromRotY + (toRotY - fromRotY) * k;
+          },
+          onComplete: () => {
+            tween3DMap.delete(obj);
+            if (obj.userData) obj.userData.busy = false;
+            if (onDone) onDone();
+          },
+        });
+        tween3DMap.set(obj, anim);
+        return anim;
       }
-      function easeF(k, kind) {
-        if (kind === "easeIn") return k * k;
-        if (kind === "easeInOut") return k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-        return 1 - Math.pow(1 - k, 3); // easeOutCubic
-      }
-      function stepTweens() {
-        const now = performance.now();
-        for (let i = tweens.length - 1; i >= 0; i--) {
-          const t = tweens[i];
-          const k = Math.min(1, (now - t.t0) / t.dur);
-          const e = easeF(k, t.ease);
-          t.obj.position.lerpVectors(t.fromPos, t.toPos, e);
-          t.obj.scale.lerpVectors(t.fromScale, t.toScale, e);
-          t.obj.rotation.y = t.fromRotY + (t.toRotY - t.fromRotY) * e;
-          if (k >= 1) { tweens.splice(i, 1); if (t.onDone) t.onDone(); }
-        }
-      }
-      // 粒子
-      const particles = [];
+      // 粒子爆发：小方块上抛 + 淡出（代理状态接入 anime，无需自管更新循环）
       function burst3D(pos, color, count) {
-        const geo = new THREE.BufferGeometry();
-        const arr = new Float32Array(count * 3);
+        const geo = new THREE.BoxGeometry(0.09, 0.09, 0.09);
+        let alive = count;
         for (let i = 0; i < count; i++) {
-          arr[i * 3] = (Math.random() - 0.5) * 1.6;
-          arr[i * 3 + 1] = Math.random() * 1.8;
-          arr[i * 3 + 2] = (Math.random() - 0.5) * 1.6;
+          const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color), transparent: true }));
+          m.position.copy(pos).add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.06, (Math.random() - 0.5) * 0.4));
+          scene.add(m);
+          const st = { x: m.position.x, y: m.position.y, z: m.position.z, s: 1, o: 1 };
+          animate(st, {
+            x: st.x + (Math.random() - 0.5) * 1.6,
+            z: st.z + (Math.random() - 0.5) * 1.6,
+            y: st.y + 0.9 + Math.random() * 1.1,
+            s: 0.1,
+            o: 0,
+            duration: 420 + Math.random() * 320,
+            ease: "outCubic",
+            onUpdate: () => {
+              m.position.set(st.x, st.y, st.z);
+              m.scale.setScalar(st.s);
+              m.material.opacity = st.o;
+            },
+            onComplete: () => {
+              scene.remove(m);
+              m.material.dispose();
+              if (--alive <= 0) geo.dispose();
+            },
+          });
         }
-        geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
-        const mat = new THREE.PointsMaterial({ color: new THREE.Color(color), size: 0.09, transparent: true, opacity: 1 });
-        const pts = new THREE.Points(geo, mat);
-        pts.position.copy(pos);
-        scene.add(pts);
-        particles.push({ obj: pts, v: new THREE.Vector3((Math.random() - 0.5) * 0.4, 1.6 + Math.random(), (Math.random() - 0.5) * 0.4), t0: performance.now() });
       }
-      function stepParticles() {
-        const now = performance.now();
-        for (let i = particles.length - 1; i >= 0; i--) {
-          const p = particles[i];
-          const dt = Math.min((now - p.t0) / 1000, 1);
-          p.obj.position.addScaledVector(p.v, dt * 0.9);
-          p.obj.material.opacity = 1 - dt;
-          if (dt >= 1) { scene.remove(p.obj); p.obj.geometry.dispose(); p.obj.material.dispose(); particles.splice(i, 1); }
+      // 冲击波圆环：扩散 + 淡出
+      function shockwave3D(pos) {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.3, 0.42, 32),
+          new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.copy(pos).setY(0.06);
+        scene.add(ring);
+        const st = { s: 1, o: 0.95 };
+        animate(st, {
+          s: 3.2,
+          o: 0,
+          duration: 430,
+          ease: "outCubic",
+          onUpdate: () => { ring.scale.setScalar(st.s); ring.material.opacity = st.o; },
+          onComplete: () => { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); },
+        });
+      }
+      // 受击闪光：材质颜色红闪后恢复（anime 驱动颜色插值）
+      function flashMesh3D(g) {
+        if (!g) return;
+        const mat = g.userData.frontMat;
+        const red = new THREE.Color(0xff5a4a), white = new THREE.Color(0xffffff);
+        const st = { k: 0 };
+        animate(st, {
+          k: 1,
+          duration: 55,
+          ease: "linear",
+          onUpdate: () => mat.color.lerpColors(white, red, st.k),
+          onComplete: () => {
+            animate(st, { k: 0, duration: 260, ease: "outQuad", onUpdate: () => mat.color.lerpColors(white, red, st.k) });
+          },
+        });
+      }
+      // 卡片碎裂：按当前纹理分片，碎片随机飞散旋转淡出（里侧/横置卡取各自实际纹理）
+      function shatter3D(g, color) {
+        if (!g || !g.visible) return;
+        g.visible = false;
+        const COLS = 5, ROWS = 7;
+        const frontTex = g.userData.frontMat.map;
+        const src = frontTex && frontTex.image && frontTex.image.getContext ? frontTex.image : null;
+        const shardW = CARD_W / COLS, shardH = CARD_H / ROWS;
+        const holder = new THREE.Group();
+        holder.position.copy(g.position);
+        holder.rotation.copy(g.rotation);
+        holder.scale.copy(g.scale);
+        scene.add(holder);
+        let alive = COLS * ROWS;
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const mat = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false });
+            if (src) {
+              const s = 64;
+              const cv = document.createElement("canvas");
+              cv.width = s; cv.height = s;
+              const ctx = cv.getContext("2d");
+              ctx.drawImage(src, Math.floor(c * src.width / COLS), Math.floor(r * src.height / ROWS), Math.ceil(src.width / COLS), Math.ceil(src.height / ROWS), 0, 0, s, s);
+              const tex = new THREE.CanvasTexture(cv);
+              tex.colorSpace = THREE.SRGBColorSpace;
+              mat.map = tex;
+            } else {
+              mat.color.set(color || 0x9a8fb0);
+            }
+            const piece = new THREE.Mesh(new THREE.PlaneGeometry(shardW * 0.92, shardH * 0.92), mat);
+            piece.position.set((c - (COLS - 1) / 2) * shardW, ((ROWS - 1) / 2 - r) * shardH, CARD_T / 2 + 0.01);
+            holder.add(piece);
+            const st = { x: piece.position.x, y: piece.position.y, z: piece.position.z, rx: 0, ry: 0, rz: 0, o: 1 };
+            animate(st, {
+              x: st.x + (Math.random() - 0.5) * 1.7,
+              y: st.y + 0.35 - Math.random() * 1.0,
+              z: st.z + 0.35 + Math.random() * 0.9,
+              rx: (Math.random() - 0.5) * 720 * Math.PI / 180,
+              ry: (Math.random() - 0.5) * 720 * Math.PI / 180,
+              rz: (Math.random() - 0.5) * 360 * Math.PI / 180,
+              o: 0,
+              duration: 750 + Math.random() * 400,
+              ease: "outQuad",
+              onUpdate: () => {
+                piece.position.set(st.x, st.y, st.z);
+                piece.rotation.set(st.rx, st.ry, st.rz);
+                mat.opacity = st.o;
+              },
+              onComplete: () => {
+                holder.remove(piece);
+                if (mat.map) mat.map.dispose();
+                mat.dispose();
+                piece.geometry.dispose();
+                if (--alive <= 0) scene.remove(holder);
+              },
+            });
+          }
         }
       }
 
@@ -977,17 +1197,23 @@
       new ResizeObserver(resize).observe(stage);
       resize();
       requestAnimationFrame(resize); // 布局稳定后再校正一次
-      function animate() {
-        requestAnimationFrame(animate);
+      function renderLoop() {
+        requestAnimationFrame(renderLoop);
         camera.updateMatrixWorld(true);
-        stepTweens();
-        stepParticles();
-        // 平滑趋近目标位
+        // 平滑趋近目标位（tween3D 接管中的卡跳过，避免阻尼覆盖动画）
         for (const g of cardMeshes.values()) {
-          if (g.userData.dying) continue;
+          if (g.userData.dying || g.userData.busy) continue;
           const tp = g.userData.targetPos;
           g.position.lerp(tp, 0.22);
           if (g.userData.hover && !g.userData.dying) g.position.y = tp.y + 0.18;
+          // 选中态（攻击者/祭品已选）抬升，强化视觉反馈
+          const slotInfo = g.userData.slot;
+          const liftedSel =
+            (mode === "attack" && slotInfo && slotInfo.who === "me" && slotInfo.kind === "monster" && slotInfo.idx === attackZone) ||
+            (mode === "tribute" && slotInfo && slotInfo.who === "me" && slotInfo.kind === "monster" && tributePool.includes(slotInfo.idx));
+          if (liftedSel) g.position.y = tp.y + 0.3;
+          // 常驻魔陷关联怪兽：轻微抬升
+          else if (g.userData.card && linkedUids.has(g.userData.card.uid)) g.position.y = tp.y + 0.12;
           // 手牌/场上缩放趋近
           const ts = g.userData.targetScale;
           g.scale.x += (ts - g.scale.x) * 0.22;
@@ -1009,20 +1235,30 @@
           g.rotation.x += (tr.x - g.rotation.x) * damp;
           g.rotation.y += (tr.y - g.rotation.y) * damp;
         }
-        // 堆标签投影
+        // 堆标签投影（取整定位，避免亚像素抖动）
         for (const [key, g] of pileMeshes) {
           const tag = pileTags.get(key);
           if (!tag) continue;
           const v = g.position.clone().project(camera);
           const rect = renderer.domElement.getBoundingClientRect();
-          tag.style.left = ((v.x * 0.5 + 0.5) * rect.width) + "px";
-          tag.style.top = ((-v.y * 0.5 + 0.5) * rect.height + 26) + "px";
+          tag.style.left = Math.round((v.x * 0.5 + 0.5) * rect.width) + "px";
+          tag.style.top = Math.round((-v.y * 0.5 + 0.5) * rect.height + 26) + "px";
           tag.textContent = ({ deck: "卡组", grave: "墓地", extra: "额外", banished: "除外" }[key.split(":")[0]] || "") + " " + g.userData.count;
           tag.style.display = g.userData.count > 0 ? "" : "none";
         }
+        // 卡牌引导 chip 投影（跟随对应卡牌，取整定位）
+        for (const [key, el] of chipEls) {
+          const uid = key.split(":")[0];
+          const g = cardMeshes.get(uid);
+          if (!g) { el.remove(); chipEls.delete(key); continue; }
+          const v = g.position.clone().project(camera);
+          const rect = renderer.domElement.getBoundingClientRect();
+          el.style.left = Math.round((v.x * 0.5 + 0.5) * rect.width) + "px";
+          el.style.top = Math.round((-v.y * 0.5 + 0.5) * rect.height - 40) + "px";
+        }
         renderer.render(scene, camera);
       }
-      animate();
+      renderLoop();
 
       /* ===================== 音效 ===================== */
       function acCtx() {
@@ -1060,8 +1296,7 @@
         }
       }
       function shakeBoard() {
-        const b = $("board");
-        b.classList.remove("shake"); void b.offsetWidth; b.classList.add("shake");
+        animate($("board"), { x: [0, -7, 6, -5, 4, -2, 0], duration: 380, ease: "linear" });
       }
 
       /* ===================== DOM 卡牌（菜单/弹窗展示用） ===================== */
@@ -1111,6 +1346,8 @@
         renderChainBanner(s);
         renderPrompt(s);
         renderModeBar();
+        try { renderChips(); }
+        catch (e) { if (!window.__rcErr) { window.__rcErr = true; pushLog("[ui] chip渲染失败: " + (e && e.message)); } }
         if (s.winner && !winnerShown) showGameOver(s.winner);
       }
       function updateLP(who, val) {
@@ -1118,14 +1355,15 @@
         const fill = $(`lp-${who}-fill`);
         fill.style.width = Math.max(0, val / 8000 * 100) + "%";
         if (val < prevLp[who]) {
-          const bar = $(`lp-${who}-bar`);
-          bar.classList.remove("flash"); void bar.offsetWidth; bar.classList.add("flash");
+          animate($(`lp-${who}-bar`), { boxShadow: ["0 0 0px rgba(229,72,77,0)", "0 0 18px rgba(229,72,77,0.9)", "0 0 0px rgba(229,72,77,0)"], duration: 460, ease: "linear" });
           if (who === "me") flashScreen("rgba(229,72,77,0.25)");
         }
         prevLp[who] = val;
       }
       function flashScreen(color) {
-        const f = $("screen-flash"); f.style.background = color; f.classList.remove("on"); void f.offsetWidth; f.classList.add("on");
+        const f = $("screen-flash");
+        f.style.background = color;
+        animate(f, { opacity: [0, 0.55, 0], duration: 420, ease: "linear" });
       }
       function renderTurnBar(s) {
         const mine = s.turnPlayer === "me" && !s.pending && !s.resolving && !s.winner;
@@ -1141,7 +1379,7 @@
         const mainBtn = $("tb-main"), altBtn = $("tb-alt"), endBtn = $("tb-end");
         const set = (b, label, show, primary, enabled) => {
           b.textContent = label;
-          b.style.display = show ? "" : "none";
+          b.style.visibility = show ? "" : "hidden"; // 占位隐藏而非 display:none，避免回合条宽度跳动
           b.className = "tb-btn" + (primary ? " primary" : " ghost");
           b.disabled = !(mine && enabled);
         };
@@ -1273,20 +1511,79 @@
       function exitMode() { mode = null; attackZone = null; tributeHandIdx = null; tributePool = []; render(); renderModeBar(); }
       function toggleTribute(idx) { if (tributePool.includes(idx)) tributePool = tributePool.filter((x) => x !== idx); else tributePool.push(idx); render(); renderModeBar(); }
       function renderModeBar() {
-        const bar = $("mode-bar"); if (!mode) { bar.classList.remove("show"); return; }
-        bar.classList.add("show"); bar.innerHTML = "";
+        const bar = $("mode-bar"); const overlay = $("atk-overlay");
+        if (!mode) { bar.classList.remove("show"); overlay.classList.remove("show"); overlay.innerHTML = ""; return; }
         if (mode === "attack") {
-          const lbl = document.createElement("div"); lbl.className = "lbl"; lbl.textContent = "⚔ 选择攻击对象"; bar.appendChild(lbl);
+          // 攻击选择：悬浮居中面板（大按钮/目标提示，远离回合条防误点）
+          bar.classList.remove("show");
+          overlay.classList.add("show"); overlay.innerHTML = "";
+          const attacker = duel.state.me.monsterZone[attackZone];
+          const title = document.createElement("div"); title.className = "atk-title";
+          title.textContent = (attacker ? attacker.name : "?") + " 正在攻击";
+          overlay.appendChild(title);
           if (duel.state.ai.monsterZone.every((x) => !x)) {
-            const b = document.createElement("button"); b.className = "btn"; b.textContent = "直接攻击"; b.onclick = () => { duel.declareAttack(attackZone, null); exitMode(); }; bar.appendChild(b);
+            const b = document.createElement("button"); b.className = "btn big"; b.textContent = "💥 直接攻击";
+            b.onclick = () => { duel.declareAttack(attackZone, null); exitMode(); };
+            overlay.appendChild(b);
+          } else {
+            const hint = document.createElement("div"); hint.className = "atk-hint";
+            hint.textContent = "🖱 点击对方怪兽（红色高亮）选择攻击目标";
+            overlay.appendChild(hint);
           }
-          const c = document.createElement("button"); c.className = "btn ghost"; c.textContent = "取消"; c.onclick = () => exitMode(); bar.appendChild(c);
-        } else if (mode === "tribute") {
+          const c = document.createElement("button"); c.className = "btn ghost"; c.textContent = "取消"; c.onclick = () => exitMode(); overlay.appendChild(c);
+          return;
+        }
+        overlay.classList.remove("show"); overlay.innerHTML = "";
+        bar.classList.add("show"); bar.innerHTML = "";
+        if (mode === "tribute") {
           const card = duel.state.me.hand[tributeHandIdx]; const need = card.level >= 7 ? 2 : 1;
-          const lbl = document.createElement("div"); lbl.className = "lbl"; lbl.textContent = `祭品 ${tributePool.length}/${need}`; bar.appendChild(lbl);
+          const lbl = document.createElement("div"); lbl.className = "lbl"; lbl.textContent = `祭品 ${tributePool.length}/${need}（金色高亮为已选）`; bar.appendChild(lbl);
           const ok = document.createElement("button"); ok.className = "btn"; ok.textContent = "确认召唤"; ok.disabled = tributePool.length !== need;
           ok.onclick = () => { if (tributePool.length === need) { duel.tributeSummon(tributeHandIdx, [...tributePool], null, "atk"); exitMode(); } }; bar.appendChild(ok);
           const c = document.createElement("button"); c.className = "btn ghost"; c.textContent = "取消"; c.onclick = () => exitMode(); bar.appendChild(c);
+        }
+      }
+
+      /* ===================== 卡牌引导 chip（战斗攻击 / 祭品已选） ===================== */
+      function renderChips() {
+        const want = new Map(); // key -> { cls, text, fn }
+        const s = duel && duel.state;
+        if (s) {
+          // 战斗阶段（未进入攻击选择模式）：可攻击显示 ⚔ 攻击，不可攻击显示原因
+          if (s.turnPlayer === "me" && s.phase === "battle" && !s.pending && !s.resolving && !mode) {
+            s.me.monsterZone.forEach((m, i) => {
+              if (!m) return;
+              const blk = duel.attackBlock(i);
+              want.set(m.uid, blk.ok
+                ? { cls: "atk", text: "⚔ 攻击", fn: () => enterAttackMode(i) }
+                : { cls: "dim", text: "⛔ " + blk.reason, fn: () => toast(blk.reason) });
+            });
+          }
+          // 祭品选择：已选卡打勾
+          if (mode === "tribute") {
+            s.me.monsterZone.forEach((m, i) => {
+              if (!m || !tributePool.includes(i)) return;
+              want.set(m.uid + ":sel", { cls: "sel", text: "✓ 已选", fn: null });
+            });
+          }
+        }
+        // 差异更新：不重建未变化的 chip，避免 popIn 动画反复重播引起抖动
+        for (const [key, el] of chipEls) {
+          if (!want.has(key)) { el.remove(); chipEls.delete(key); }
+        }
+        for (const [key, w] of want) {
+          let el = chipEls.get(key);
+          if (!el) {
+            el = document.createElement("div");
+            stage.appendChild(el);
+            chipEls.set(key, el);
+          }
+          if (el.__cls !== w.cls || el.__text !== w.text) {
+            el.className = "card-chip " + w.cls;
+            el.textContent = w.text;
+            el.onclick = w.fn || null;
+            el.__cls = w.cls; el.__text = w.text;
+          }
         }
       }
 
@@ -1352,7 +1649,7 @@
         modal.innerHTML = `<div class="gameover"><h2 class="${win ? "win" : "lose"}">${draw ? "平局" : win ? "胜利！" : "败北…"}</h2><p style="color:var(--dim);">${draw ? "双方同归于尽" : win ? "你击败了 AI" : "AI 取得了胜利"}</p><div class="btns"><button class="btn" id="again">再来一局</button></div></div>`;
         $("again").onclick = () => { delete mask.dataset.gameover; mask.classList.remove("show"); newGame(); };
       }
-      const DECK_LABELS = { classic: "经典卡组", hero: "元素英雄（游城十代）", machine: "机械族", blueeyes: "青眼白龙", darkmagician: "黑魔术师", redeyes: "真红眼黑龙", harpie: "神鹰女郎", magnet: "磁石战士" };
+      const DECK_LABELS = { classic: "经典卡组", hero: "元素英雄（游城十代）", machine: "机械族", blueeyes: "青眼白龙", darkmagician: "黑魔术师", redeyes: "真红眼黑龙", harpie: "神鹰女郎", magnet: "磁石战士", warrior: "战士族", zombie: "不死族", fairy: "天使族" };
       const DECK_EMOJIS = { classic: "⚔️", hero: "🦸", machine: "⚙️", blueeyes: "🐉", darkmagician: "🧙", redeyes: "🐲", harpie: "🦅", magnet: "🧲" };
       function openDeckSelect() {
         const mask = $("modal-mask"); const modal = $("modal"); mask.dataset.gameover = ""; mask.classList.add("show");
@@ -1403,32 +1700,41 @@
         main2: ["主要阶段 2", "还可召唤、覆盖魔法·陷阱卡"],
         end: ["结束阶段", "手卡多于 6 张需丢弃"],
       };
-      function fxEl(inner, x, y, cls) {
+      function fxEl(inner, x, y, cls, opts = {}) {
         const el = document.createElement("div");
         el.className = "fx " + cls;
         if (x != null && y != null) { el.style.left = x + "px"; el.style.top = y + "px"; }
         el.innerHTML = inner;
         document.body.appendChild(el);
-        const kill = () => el.remove();
-        el.addEventListener("animationend", kill, { once: true });
-        setTimeout(kill, 3000);
+        // anime 统一驱动：滑入放大 → 停留 → 上浮淡出移除
+        const hold = opts.hold != null ? opts.hold : 1100;
+        animate(el, {
+          opacity: [0, 1],
+          y: [14, 0],
+          scale: [0.92, 1],
+          duration: opts.dur || 300,
+          ease: "outCubic",
+          onComplete: () => {
+            animate(el, { opacity: 0, y: -14, duration: 420, delay: hold, ease: "inQuad", onComplete: () => el.remove() });
+          },
+        });
         return el;
       }
       function fxTurnBanner(player, turn) {
         const me = player === "me";
         const tip = me ? PHASE_TIPS.main1[1] : "AI 行动中…";
-        fxEl(`<div class="turn-banner-inner ${me ? "me" : "ai"}"><b>${me ? "你的回合" : "AI 的回合"}</b><span>第 ${turn} 回合 · ${tip}</span></div>`, null, null, "fx-turn-banner");
+        fxEl(`<div class="turn-banner-inner ${me ? "me" : "ai"}"><b>${me ? "你的回合" : "AI 的回合"}</b><span>第 ${turn} 回合 · ${tip}</span></div>`, null, null, "fx-turn-banner", { dur: 340, hold: 1500 });
       }
       function fxActBanner(card, actor) {
         const name = card ? card.name : "";
         const extra = card && card.cid === "kuriboh" ? "（该次战斗伤害无效）" : "";
-        fxEl(`<span class="fx-act-txt">✨ ${actor === "me" ? "玩家" : "AI"} 发动：${name}${extra}</span>`, null, null, "fx-act-banner");
+        fxEl(`<span class="fx-act-txt">✨ ${actor === "me" ? "玩家" : "AI"} 发动：${name}${extra}</span>`, null, null, "fx-act-banner", { dur: 260, hold: 900 });
       }
       function fxPhaseBanner(phase, player) {
         const t = PHASE_TIPS[phase];
         if (!t) return;
         const me = player === "me";
-        fxEl(`<div class="fx-phase-inner ${me ? "me" : "ai"}"><b>${t[0]}</b>${t[1] ? `<span>${t[1]}</span>` : ""}</div>`, null, null, "fx-phase-banner");
+        fxEl(`<div class="fx-phase-inner ${me ? "me" : "ai"}"><b>${t[0]}</b>${t[1] ? `<span>${t[1]}</span>` : ""}</div>`, null, null, "fx-phase-banner", { dur: 300, hold: 1300 });
       }
       function projectCard3D(uid) {
         const g = cardMeshes.get(uid);
@@ -1448,11 +1754,22 @@
         const fromPos = ag.position.clone();
         const tg = target ? cardMeshes.get(target.uid) : null;
         const toPos = tg ? tg.position.clone().add(new THREE.Vector3(0, 0, -0.55)) : fromPos.clone().add(new THREE.Vector3(0, 0.4, -2.2));
-        tween3D(ag, { pos: toPos }, 170, "easeInOut", () => {
-          tween3D(ag, { pos: fromPos }, 240, "easeOut", null);
-        });
-        burst3D(toPos, "#e6b24a", 10);
         sfx("attack");
+        // 1) 突进（贝塞尔急冲）→ 2) 命中：冲击波 + 闪光 + 目标受击后退 → 3) 弹性回弹
+        tween3D(ag, { pos: toPos }, 150, "attack", () => {
+          shockwave3D(tg ? tg.position.clone() : toPos);
+          burst3D(toPos, "#e6b24a", 10);
+          if (tg) {
+            flashMesh3D(tg);
+            const base = tg.position.clone();
+            const nudge = base.clone().add(new THREE.Vector3(0, 0, 0.22));
+            tween3D(tg, { pos: nudge }, 90, "easeIn", () => {
+              tween3D(tg, { pos: base }, 240, "easeOut", null);
+            });
+          }
+          shakeBoard();
+          tween3D(ag, { pos: fromPos }, 420, "recoil", null);
+        });
       }
       function fxImpact3D(ev) {
         const dmg = ev.damage || 0;
@@ -1473,7 +1790,8 @@
       function fxBurst3D(card, color) {
         const g = cardMeshes.get(card.uid);
         if (!g) return;
-        burst3D(g.position.clone(), color || "#ffd24a", 26);
+        shatter3D(g, color || "#ffd24a");                     // 碎裂飞散
+        burst3D(g.position.clone(), color || "#ffd24a", 12);  // 碎屑
         sfx("destroy");
       }
       function fxSummon3D(card) {

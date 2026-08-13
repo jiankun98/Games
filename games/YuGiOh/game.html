@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>游戏王·决斗对战</title>
-    <script src="./cards.js"></script>
-    <script src="./index.js"></script>
-    <script src="./ai-player.js"></script>
+    <script src="./cards.js?v=2"></script>
+    <script src="./index.js?v=2"></script>
+    <script src="./ai-player.js?v=2"></script>
     <style>
       :root {
         --bg: #0b0e16;
@@ -1217,7 +1217,7 @@
 
       // ---------- 启动 ----------
       // 卡组选择（开局双方各自选卡组）
-      const DECK_LABELS = { classic: "经典卡组", hero: "元素英雄（游城十代）", machine: "机械族", blueeyes: "青眼白龙", darkmagician: "黑魔术师", redeyes: "真红眼黑龙", harpie: "神鹰女郎", magnet: "磁石战士" };
+      const DECK_LABELS = { classic: "经典卡组", hero: "元素英雄（游城十代）", machine: "机械族", blueeyes: "青眼白龙", darkmagician: "黑魔术师", redeyes: "真红眼黑龙", harpie: "神鹰女郎", magnet: "磁石战士", warrior: "战士族", zombie: "不死族", fairy: "天使族" };
       const DECK_EMOJIS = { classic: "⚔️", hero: "🦸", machine: "⚙️", blueeyes: "🐉", darkmagician: "🧙", redeyes: "🐲", harpie: "🦅", magnet: "🧲" };
       function openDeckSelect() {
         const mask = $("modal-mask"); const modal = $("modal"); mask.dataset.gameover = ""; mask.classList.add("show");
