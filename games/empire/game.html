@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Cache-Control" content="no-store" />
+  <title>商业帝国 · 从零到万亿</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="./data.js?v=4"></script>
+  <script src="./index.js?v=4"></script>
+  <style>
+    :root {
+      --bg: #0c0f17;
+      --panel: #1a2130;
+      --line: #2e3a52;
+      --text: #e8ecf4;
+      --dim: #8b96ac;
+      --gold: #e8b64c;
+      --good: #4dc878;
+      --bad: #e05545;
+      --info: #5aa2e8;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    body {
+      font-family: "Noto Serif SC", "PingFang SC", "Microsoft YaHei", serif;
+      background: var(--bg);
+      background-image:
+        radial-gradient(ellipse at 15% 0%, rgba(232, 182, 76, 0.06), transparent 50%),
+        radial-gradient(ellipse at 90% 100%, rgba(90, 162, 232, 0.05), transparent 55%);
+      color: var(--text);
+      display: flex; flex-direction: column;
+      touch-action: none;
+    }
+
+    /* ===== 顶栏 ===== */
+    header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 8px 16px;
+      background: linear-gradient(180deg, #141a28, #10141f);
+      border-bottom: 2px solid var(--gold);
+      box-shadow: 0 3px 12px rgba(0,0,0,.4);
+      z-index: 10; flex-wrap: wrap;
+    }
+    .home-link { color: rgba(232,236,244,0.6); text-decoration: none; font-size: 13px; white-space: nowrap; }
+    .home-link:hover { color: var(--gold); }
+    h1 { font-size: 19px; margin: 0; letter-spacing: 3px; font-weight: 700; }
+    h1 .sub { font-size: 11px; color: var(--dim); letter-spacing: 2px; margin-left: 8px; font-weight: 400; }
+    .actions { margin-left: auto; display: flex; gap: 8px; }
+    .icon-btn {
+      background: var(--panel); border: 1px solid var(--line); color: var(--dim);
+      font-family: inherit; font-size: 12px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+      transition: all .15s;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--gold); }
+
+    /* ===== 画布 ===== */
+    #stage { flex: 1; display: grid; place-items: center; min-height: 0; padding: 8px; }
+    canvas { display: block; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+
+    /* ===== 弹窗 ===== */
+    .modal-mask {
+      position: fixed; inset: 0; background: rgba(5, 8, 14, 0.72);
+      display: none; align-items: center; justify-content: center; z-index: 50;
+      backdrop-filter: blur(3px);
+    }
+    .modal-mask.show { display: flex; }
+    .modal {
+      width: min(560px, calc(100vw - 40px)); max-height: 82vh; overflow: auto;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      padding: 26px 28px; box-shadow: 0 24px 80px rgba(0,0,0,.6);
+    }
+    .modal h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: 2px; }
+    .modal h2.gold { color: var(--gold); }
+    .modal .lead { color: var(--dim); font-size: 13px; margin: 0 0 16px; }
+    .modal h3 { font-size: 15px; color: var(--gold); margin: 16px 0 6px; }
+    .modal p, .modal li { font-size: 13.5px; line-height: 1.8; color: #c8d0dd; }
+    .modal ul { padding-left: 18px; margin: 6px 0; }
+    .modal .nums { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin: 14px 0; }
+    .modal .nums div { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 12px; font-size: 13px; color: var(--dim); }
+    .modal .nums b { color: var(--text); font-size: 16px; display: block; margin-top: 2px; }
+    .modal .btns { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    .modal button.main {
+      flex: 1; min-width: 130px; padding: 11px 16px; font-family: inherit;
+      background: #c9993c; color: #1c1608; border: 1px solid #e8c563; border-radius: 9px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .modal button.main:hover { background: #d8ab48; }
+    .modal button.plain {
+      flex: 1; min-width: 130px; padding: 11px 16px; font-family: inherit;
+      background: transparent; color: var(--dim); border: 1px solid var(--line); border-radius: 9px;
+      font-size: 14px; cursor: pointer;
+    }
+    .modal button.plain:hover { color: var(--text); border-color: var(--gold); }
+    .big-gain { font-size: 30px; font-weight: 900; color: var(--gold); margin: 8px 0 2px; }
+
+    /* ===== toast ===== */
+    #toasts { position: fixed; right: 16px; top: 64px; z-index: 40; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+    .toast {
+      max-width: 340px; padding: 10px 14px; border-radius: 10px;
+      background: rgba(26, 33, 48, 0.95); border: 1px solid var(--line);
+      font-size: 13px; line-height: 1.6; color: var(--text);
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+      animation: slideIn .25s ease;
+    }
+    .toast.good { border-color: rgba(77, 200, 120, 0.5); }
+    .toast.bad { border-color: rgba(224, 85, 69, 0.5); }
+    .toast.gold { border-color: rgba(232, 182, 76, 0.6); color: var(--gold); }
+    @keyframes slideIn { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="home-link" href="../../index.html">← 主页</a>
+    <h1>商业帝国<span class="sub">BUSINESS EMPIRE · 从零到万亿</span></h1>
+    <div class="actions">
+      <button class="icon-btn" id="btn-help">📖 说明</button>
+      <button class="icon-btn" id="btn-sound">🔊 音效</button>
+      <button class="icon-btn" id="btn-reset">🔄 重开</button>
+    </div>
+  </header>
+
+  <div id="stage"><canvas id="cv"></canvas></div>
+
+  <!-- 说明 -->
+  <div class="modal-mask" id="m-help">
+    <div class="modal">
+      <h2 class="gold">玩法说明</h2>
+      <p class="lead">从 500 元与一份底薪起步，经营产业、投资股市楼市古董，把身家滚到 <b style="color:var(--gold)">1 万亿</b>，登顶世界首富。</p>
+      <h3>🏛 产业经营（核心）</h3>
+      <ul>
+        <li><b>产业不是保本挂机</b>：净利 = 收入 − 原料成本 − 工资 − 设备维护，经营不善会亏损，现金烧干自动停业。</li>
+        <li><b>员工</b>：没有员工就没有产能。招聘随机刷出 普通/熟练/金牌 候选，品质越高效率与薪水都越高。</li>
+        <li><b>设备</b>：决定产能上限，持续损耗需要维修；<b>网约车队</b>的车有里程寿命，跑满自动报废回收残值。</li>
+        <li><b>配方</b>：研发解锁新产品（高售价+高原料成本），主推配方决定产品线。便利店可多 SKU 并行。</li>
+        <li><b>原料</b>：14 种全球波动行情，高价时利润被吃掉——低价囤货入库可锁定成本。</li>
+        <li><b>口碑</b>：长期供不应求会掉口碑、掉需求；设备员工配足则口碑上涨。</li>
+        <li>各产业有专属机制：奶茶季节性、咖啡豆价传导、健身房预收、电商大促、手游热度生命周期（换配方=再立项）、锂价周期、半导体景气周期、航天大额订单制、元宇宙用户飞轮。</li>
+      </ul>
+      <h3>📈 股市（45 支）</h3>
+      <ul>
+        <li>股价随机漫步（红涨绿跌），新闻事件驱动短期行情。</li>
+        <li><b>分红</b>：每个游戏日（60 秒）按 持仓×股价×股息率 派发现金——蓝筹高息低波动，成长股低息高弹性。</li>
+      </ul>
+      <h3>🏠 地产 / 🏺 古董 / 🛍 商店</h3>
+      <ul>
+        <li>地产：买入收租（计入每秒现金流），房价慢波动可低买高卖。</li>
+        <li>古董：大波动长周期升值，随机触发限时 15 秒「捡漏 6 折」与「藏家 1.8 倍求购」。</li>
+        <li>商店：典籍永久加成净利、奢侈品计入资产并加持、消耗品限时双倍。</li>
+      </ul>
+      <h3>💾 存档与离线</h3>
+      <ul>
+        <li>每 5 秒自动存档；离线按稳定现金流的 60% 结算收益（上限 24 小时）。</li>
+      </ul>
+      <div class="btns"><button class="main" id="help-close">开始经营</button></div>
+    </div>
+  </div>
+
+  <!-- 离线收益 -->
+  <div class="modal-mask" id="m-offline">
+    <div class="modal">
+      <h2 class="gold">欢迎回来</h2>
+      <p class="lead" id="off-lead">你离开的这段时间，商业帝国仍在运转：</p>
+      <div class="big-gain" id="off-gain">+0</div>
+      <p class="lead">离线收益（60% 效率，上限 24 小时）</p>
+      <div class="btns"><button class="main" id="off-close">继续经营</button></div>
+    </div>
+  </div>
+
+  <!-- 胜利结算 -->
+  <div class="modal-mask" id="m-win">
+    <div class="modal">
+      <h2 class="gold">👑 登顶世界首富</h2>
+      <p class="lead">总资产突破 1 万亿，你的名字被写入商业史。</p>
+      <div class="nums" id="win-stats"></div>
+      <div class="nums"><div>评级<b id="win-grade">S</b></div><div>用时<b id="win-time">--</b></div></div>
+      <div class="btns">
+        <button class="main" id="win-continue">继续经营（无尽）</button>
+        <button class="plain" id="win-restart">再战一局</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 重开确认 -->
+  <div class="modal-mask" id="m-reset">
+    <div class="modal">
+      <h2>重开一局？</h2>
+      <p class="lead">当前进度（产业、持仓、身价）将被清空，且无法恢复。</p>
+      <div class="btns">
+        <button class="main" id="reset-yes">确认重开</button>
+        <button class="plain" id="reset-no">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+
+  <script>
+    (function () {
+      "use strict";
+      var $ = function (id) { return document.getElementById(id); };
+
+      /* ---------- toast ---------- */
+      var toastBox = $("toasts");
+      function toast(text, kind) {
+        var el = document.createElement("div");
+        el.className = "toast" + (kind ? " " + kind : "");
+        el.textContent = text;
+        toastBox.appendChild(el);
+        while (toastBox.children.length > 4) toastBox.removeChild(toastBox.firstChild);
+        setTimeout(function () {
+          el.style.transition = "opacity .4s";
+          el.style.opacity = "0";
+          setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 420);
+        }, 3600);
+      }
+
+      /* ---------- modal 开关 ---------- */
+      function openMask(id) { $(id).classList.add("show"); }
+      function closeMask(id) { $(id).classList.remove("show"); }
+      ["m-help", "m-offline", "m-win", "m-reset"].forEach(function (id) {
+        $(id).addEventListener("click", function (ev) { if (ev.target === $(id)) closeMask(id); });
+      });
+
+      /* ---------- 页面回调对象（引擎/UI 通过 page 与 DOM 交互） ---------- */
+      var page = {
+        canvas: $("cv"),
+        toast: toast,
+        debugInfo: function (d) {
+          document.title = "DBG " + d.tab + "|" + (d.ind || "-") + "/" + (d.sub || "-") +
+            "|$" + d.cash + "|w" + d.worth + "|wk" + d.workers +
+            "|" + (d.click ? Math.round(d.click.x) + "," + Math.round(d.click.y) : "-");
+        },
+        showOffline: function (res) {
+          var h = Math.floor(res.elapsed / 3600), m = Math.floor(res.elapsed % 3600 / 60);
+          $("off-lead").textContent = "离开了 " + (h ? h + " 小时 " : "") + m + " 分钟，商业帝国仍在运转（现金流 " +
+            (window.EMPIRE_FMT ? window.EMPIRE_FMT.fmt(res.flow) : res.flow) + "/s）：";
+          $("off-gain").textContent = "+" + (window.EMPIRE_FMT ? window.EMPIRE_FMT.fmt(res.gain) : Math.round(res.gain));
+          openMask("m-offline");
+        },
+        showWin: function (info) {
+          var s = info.stats;
+          var fmt = window.EMPIRE_FMT ? window.EMPIRE_FMT.fmt : String;
+          $("win-stats").innerHTML =
+            "<div>开设产业<b>" + s.industries + " / 12</b></div>" +
+            "<div>累计赚取<b>" + fmt(s.earned) + "</b></div>" +
+            "<div>累计分红<b>" + fmt(s.dividends) + "</b></div>" +
+            "<div>持有房产<b>" + s.props + " 套</b></div>";
+          var mins = s.time / 60;
+          var grade = mins < 35 ? "S" : mins < 45 ? "A" : mins < 55 ? "B" : "C";
+          $("win-grade").textContent = grade;
+          $("win-time").textContent = Math.floor(mins) + " 分 " + Math.floor(s.time % 60) + " 秒";
+          openMask("m-win");
+        },
+        confirmReset: function (cb) {
+          openMask("m-reset");
+          $("reset-yes").onclick = function () { closeMask("m-reset"); cb(); };
+        }
+      };
+
+      $("help-close").onclick = function () { closeMask("m-help"); };
+      $("off-close").onclick = function () { closeMask("m-offline"); };
+      $("win-continue").onclick = function () { closeMask("m-win"); };
+      $("win-restart").onclick = function () { closeMask("m-win"); page.confirmReset(function () { game.resetGame(); }); };
+      $("reset-no").onclick = function () { closeMask("m-reset"); };
+      $("btn-help").onclick = function () { openMask("m-help"); };
+      $("btn-reset").onclick = function () { page.confirmReset(function () { game.resetGame(); }); };
+
+      window.onerror = function (msg) {
+        toast("⚠ " + msg, "bad");
+        return false;
+      };
+
+      var game = new EmpireGame(page);
+
+      $("btn-sound").onclick = function () {
+        var on = game.sound.toggle();
+        this.textContent = on ? "🔊 音效" : "🔇 静音";
+        if (on) game.sound.click();
+      };
+      if (!game.sound.on) $("btn-sound").textContent = "🔇 静音";
+
+      if (!localStorage.getItem("empire_seen_help")) {
+        openMask("m-help");
+        try { localStorage.setItem("empire_seen_help", "1"); } catch (e) {}
+      }
+    })();
+  </script>
+</body>
+</html>

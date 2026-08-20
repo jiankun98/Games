@@ -11,3 +11,5 @@
 # AI 会话工作目录（非项目内容）
 /.claude/
 /.workbuddy/
+# ZCode 会话工作目录（非项目内容）
+/.zcode/
