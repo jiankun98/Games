@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Cache-Control" content="no-store" />
+  <title>赵云与阿斗 · 水墨文字塔防</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600;900&display=swap" rel="stylesheet" />
+  <script src="./data.js?v=5"></script>
+  <script src="./index.js?v=5"></script>
+  <style>
+    :root {
+      --paper: #f1e9d6;
+      --paper-2: #e9dfc6;
+      --ink: #3a3428;
+      --ink-dim: #7a7264;
+      --cinnabar: #9e3b2e;
+      --gold: #c9a227;
+      --purple: #7b4ea3;
+      --line: rgba(90, 80, 60, 0.35);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    body {
+      font-family: "Noto Serif SC", "KaiTi", "STKaiti", serif;
+      background: var(--paper-2);
+      background-image:
+        radial-gradient(ellipse at 15% 0%, rgba(158, 59, 46, 0.05), transparent 50%),
+        radial-gradient(ellipse at 90% 100%, rgba(60, 52, 40, 0.08), transparent 55%);
+      color: var(--ink);
+      display: flex; flex-direction: column;
+      touch-action: none;
+    }
+    .bf { font-family: "Ma Shan Zheng", "KaiTi", "STKaiti", serif; }
+
+    /* ===== 顶栏（深墨底·彩色数值，与宣纸战场强对比） ===== */
+    header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 8px 16px;
+      background: #2e2820;
+      background-image: linear-gradient(180deg, #373025, #2b2519);
+      border-bottom: 3px solid #c9a227;
+      color: #f4eddb;
+      flex-wrap: wrap;
+      box-shadow: 0 3px 12px rgba(0,0,0,.35);
+      z-index: 10;
+    }
+    .home-link { color: rgba(244,237,219,0.65); text-decoration: none; font-size: 13px; white-space: nowrap; }
+    .home-link:hover { color: #e8b64c; }
+    h1 { font-size: 21px; margin: 0; letter-spacing: 2px; font-weight: normal; color: #f4eddb; }
+    h1 .sub { font-size: 11px; color: rgba(244,237,219,0.45); letter-spacing: 3px; margin-left: 8px; }
+    .hud { display: flex; gap: 18px; margin-left: auto; align-items: center; flex-wrap: wrap; }
+    .stat { display: flex; align-items: baseline; gap: 5px; font-size: 12px; color: rgba(244,237,219,0.55); white-space: nowrap; }
+    .stat b { font-size: 22px; font-weight: 900; font-family: "Noto Serif SC", serif; }
+    #hud-mantou { color: #f0c25a; text-shadow: 0 0 12px rgba(240,194,90,.35); }
+    #hud-wave { color: #ef7d68; }
+    .stat .hearts { color: #e05545; font-size: 17px; letter-spacing: 1px; }
+    #hud-kills { color: #f4eddb; }
+    .icon-btn {
+      border: 1px solid rgba(244,237,219,0.3); background: rgba(244,237,219,0.08); color: #f4eddb;
+      border-radius: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer;
+      font-family: inherit;
+    }
+    .icon-btn:hover { border-color: #e8b64c; color: #e8b64c; }
+    .icon-btn.on { background: #c9a227; color: #2b2519; border-color: #c9a227; }
+
+    /* ===== 画布区 ===== */
+    .stage { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; padding: 8px; position: relative; }
+    canvas#field {
+      display: block;
+      background: var(--paper);
+      box-shadow: 0 6px 30px rgba(58, 52, 40, 0.25);
+      border-radius: 6px;
+      touch-action: none; cursor: default;
+    }
+    .targeting-tip {
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      background: var(--cinnabar); color: #fbf6e8; padding: 6px 18px; border-radius: 20px;
+      font-size: 14px; box-shadow: 0 4px 14px rgba(158,59,46,.4); z-index: 5;
+      animation: pulse 1s infinite alternate;
+    }
+    @keyframes pulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.05); } }
+
+    /* ===== 底部操作区 ===== */
+    .dock {
+      border-top: 2px solid #8a7d5e;
+      background: #e6dabc;
+      padding: 10px 14px 12px;
+      display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap;
+      box-shadow: 0 -3px 10px rgba(58,52,40,.12);
+    }
+    .summon-col { display: flex; flex-direction: column; gap: 5px; justify-content: center; }
+    #btn-summon {
+      font-family: "Ma Shan Zheng", "KaiTi", serif;
+      font-size: 30px; letter-spacing: 6px;
+      background: linear-gradient(155deg, #d05a38, #93331f);
+      color: #fff8ec; border: none; border-radius: 12px;
+      padding: 10px 30px; cursor: pointer;
+      box-shadow: 0 5px 18px rgba(160, 60, 35, 0.45), inset 0 1px 0 rgba(255,255,255,.25);
+      transition: transform .1s ease, filter .15s;
+      text-shadow: 0 2px 4px rgba(0,0,0,.3);
+    }
+    #btn-summon:hover { filter: brightness(1.1); }
+    #btn-summon:active { transform: scale(.95); }
+    #btn-summon:disabled { filter: grayscale(.7) brightness(.8); cursor: not-allowed; }
+    .cost-hint { font-size: 12.5px; color: #6b5f45; text-align: center; font-weight: 600; }
+    .cost-hint b { color: #b0700f; font-size: 15px; }
+    #btn-wave {
+      border: none; background: #c9a227; color: #2b2519;
+      border-radius: 8px; padding: 4px 12px; font-size: 13px; cursor: pointer; font-family: inherit;
+      font-weight: 700; display: none;
+      animation: wavePulse 1.2s infinite alternate;
+      box-shadow: 0 2px 8px rgba(201,162,39,.5);
+    }
+    #btn-wave:hover { background: #dbb53e; }
+    @keyframes wavePulse { from { box-shadow: 0 0 0 0 rgba(201,162,39,.55); } to { box-shadow: 0 0 0 7px rgba(201,162,39,0); } }
+
+    .dock-block { display: flex; flex-direction: column; gap: 5px; }
+    .dock-label { font-size: 11px; color: #6b5f45; letter-spacing: 2px; font-weight: 600; }
+    .bench-row { display: flex; gap: 8px; }
+    .slot {
+      width: 56px; height: 56px; border: 2px solid #9c8e6e; border-radius: 10px;
+      display: grid; place-items: center; position: relative;
+      background: #f7f1de; cursor: grab; user-select: none;
+      transition: border-color .15s, transform .1s;
+    }
+    .slot:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
+    .slot .ch { font-family: "Ma Shan Zheng", "KaiTi", serif; font-size: 29px; line-height: 1; }
+    .slot .lv {
+      position: absolute; right: 3px; bottom: 2px; font-size: 10px; font-weight: bold;
+      color: #6b5f45; font-family: sans-serif;
+    }
+    .slot.troop .ch { color: #33291a; }
+    /* 碎片槽：朱砂强调 */
+    .slot.char { border-color: #b04a38; background: #f8e9e2; }
+    .slot.char .ch { color: #9e3b2e; }
+    /* 铲子槽：土棕 */
+    .slot.shovel { border-color: #8a7350; background: repeating-linear-gradient(45deg, rgba(122,100,64,.12) 0 6px, transparent 6px 12px), #f3ecd8; }
+    .slot.pair-hint { border-color: var(--cinnabar); box-shadow: 0 0 0 2px rgba(158,59,46,.25); }
+    .slot.dragging { opacity: .35; }
+    .slot-empty { cursor: default; border-style: dashed; border-color: #b3a685; background: rgba(255,252,242,.4); }
+    .slot-empty:hover { transform: none; }
+
+    #sell-box {
+      width: 66px; border: 2px solid #a8452f; border-radius: 10px;
+      display: grid; place-items: center; color: #a8452f;
+      font-size: 12px; text-align: center; line-height: 1.5; user-select: none;
+      background: rgba(168, 69, 47, 0.07);
+      font-weight: 700;
+    }
+    #sell-box.hot { background: rgba(168,69,47,.25); border-style: solid; box-shadow: 0 0 0 3px rgba(168,69,47,.2); }
+
+    .item-slots { display: flex; gap: 8px; }
+    .item-slot {
+      width: 56px; height: 56px; border: 2px dashed #b3a685; border-radius: 10px;
+      display: grid; place-items: center; position: relative; cursor: pointer;
+      background: rgba(255, 252, 242, 0.5);
+    }
+    .item-slot.filled {
+      border: 2px solid #b08d3e; border-style: solid;
+      background: radial-gradient(circle at 35% 30%, #fdf3d7, #f0dfa8);
+      box-shadow: 0 2px 10px rgba(176,141,62,.35);
+    }
+    .item-slot .ch { font-family: "Ma Shan Zheng", "KaiTi", serif; font-size: 26px; color: #8a6d1f; }
+    .item-slot.filled:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(176,141,62,.5); }
+    .item-slot .key { position: absolute; right: 3px; bottom: 2px; font-size: 9px; color: #8a7d5e; font-family: sans-serif; font-weight: 700; }
+    .passive-row { display: flex; gap: 6px; min-height: 26px; align-items: center; flex-wrap: wrap; max-width: 340px; }
+    .passive-chip {
+      font-size: 11px; border: 1.5px solid #b08d3e; border-radius: 12px;
+      padding: 2px 9px; color: #6b5210; background: rgba(201,162,39,.12);
+      white-space: nowrap; font-weight: 600;
+    }
+    .passive-chip b { color: #8a5a06; }
+
+    /* ===== Toast ===== */
+    #toast-wrap {
+      position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; gap: 6px; z-index: 40; pointer-events: none; align-items: center;
+    }
+    .toast {
+      background: rgba(58, 52, 40, 0.92); color: #f4eddb;
+      padding: 7px 18px; border-radius: 20px; font-size: 13.5px;
+      animation: toastIn .25s ease, toastOut .4s ease 2.3s forwards;
+      box-shadow: 0 4px 14px rgba(0,0,0,.25);
+      max-width: 86vw; text-align: center;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } }
+    @keyframes toastOut { to { opacity: 0; transform: translateY(-8px); } }
+
+    /* ===== 弹窗通用 ===== */
+    .modal-mask {
+      position: fixed; inset: 0; background: rgba(40, 34, 24, 0.55);
+      display: none; align-items: center; justify-content: center; z-index: 60;
+      backdrop-filter: blur(2px);
+    }
+    .modal-mask.show { display: flex; }
+    .modal {
+      background: var(--paper); border: 1px solid var(--line); border-radius: 14px;
+      max-width: min(680px, 92vw); max-height: 84vh; overflow: auto;
+      padding: 26px 30px; box-shadow: 0 20px 60px rgba(0,0,0,.4);
+      position: relative;
+    }
+    .modal h2 { font-family: "Ma Shan Zheng", "KaiTi", serif; font-weight: normal; font-size: 28px; margin: 0 0 4px; letter-spacing: 3px; }
+    .modal .close-x {
+      position: absolute; top: 12px; right: 14px; border: none; background: none;
+      font-size: 22px; color: var(--ink-dim); cursor: pointer;
+    }
+    .modal .close-x:hover { color: var(--cinnabar); }
+
+    /* 图鉴 */
+    .dex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 14px; }
+    .dex-card {
+      border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 12px;
+      display: flex; gap: 10px; align-items: center; background: rgba(255,252,242,.5);
+    }
+    .dex-card .face {
+      width: 46px; height: 46px; border-radius: 8px; display: grid; place-items: center;
+      font-family: "Ma Shan Zheng", "KaiTi", serif; font-size: 22px; color: #fbf6e8;
+      flex-shrink: 0;
+    }
+    .dex-card .info { min-width: 0; }
+    .dex-card .nm { font-size: 15px; font-weight: 600; }
+    .dex-card .nm .q { font-size: 10px; padding: 1px 5px; border-radius: 8px; color: #fff; margin-left: 5px; vertical-align: 1px; }
+    .dex-card .sk { font-size: 11px; color: var(--ink-dim); margin-top: 2px; line-height: 1.5; }
+    .dex-card .sk b { color: var(--ink); }
+    .dex-card.locked { opacity: .45; filter: grayscale(.6); }
+    .dex-card .tag-faction { font-size: 10px; color: var(--ink-dim); }
+
+    /* 卷轴抽道具 */
+    #scroll-mask { z-index: 70; }
+    .scroll-box {
+      background: linear-gradient(180deg, #f7f1e0, #efe4c9);
+      border: 2px solid #b08d3e; border-radius: 12px;
+      padding: 30px 46px; text-align: center; position: relative;
+      box-shadow: 0 0 0 6px rgba(176,141,62,.25), 0 24px 60px rgba(0,0,0,.5);
+      animation: scrollOpen .45s cubic-bezier(.2,.9,.3,1.2);
+      max-width: 88vw;
+    }
+    @keyframes scrollOpen { from { transform: scaleY(.1); opacity: 0; } }
+    .scroll-box::before, .scroll-box::after {
+      content: ""; position: absolute; left: -14px; right: -14px; height: 18px;
+      background: linear-gradient(180deg, #8a6d3b, #b08d3e, #8a6d3b);
+      border-radius: 9px;
+    }
+    .scroll-box::before { top: -12px; }
+    .scroll-box::after { bottom: -12px; }
+    .scroll-box .item-icon {
+      width: 76px; height: 76px; margin: 4px auto 10px; border-radius: 50%;
+      border: 3px solid var(--gold); display: grid; place-items: center;
+      font-family: "Ma Shan Zheng", "KaiTi", serif; font-size: 40px; color: #8a6d1f;
+      background: radial-gradient(circle at 35% 30%, #fff8e6, #efe0b8);
+    }
+    .scroll-box .item-type { font-size: 11px; letter-spacing: 3px; color: var(--ink-dim); }
+    .scroll-box .item-name { font-family: "Ma Shan Zheng", "KaiTi", serif; font-size: 32px; margin: 4px 0 6px; }
+    .scroll-box .item-desc { font-size: 13px; color: var(--ink-dim); }
+    .scroll-box .tap-hint { font-size: 11px; color: var(--ink-dim); margin-top: 14px; opacity: .7; }
+
+    /* 结算 */
+    .over-box { text-align: center; min-width: 300px; }
+    .over-box .big { font-family: "Ma Shan Zheng", "KaiTi", serif; font-size: 44px; color: var(--cinnabar); letter-spacing: 6px; }
+    .over-box .wave-no { font-size: 60px; font-weight: 900; margin: 6px 0; }
+    .over-box .row { color: var(--ink-dim); font-size: 14px; margin: 4px 0; }
+    .over-box .row b { color: var(--ink); }
+    .over-box .best { color: #8a6d1f; }
+    .over-box button {
+      margin-top: 18px; font-family: "Ma Shan Zheng", "KaiTi", serif; font-size: 20px; letter-spacing: 3px;
+      background: var(--ink); color: var(--paper); border: none; border-radius: 10px;
+      padding: 10px 34px; cursor: pointer;
+    }
+    .over-box button:hover { background: #2c2618; }
+
+    /* 说明 */
+    .help-body { font-size: 13.5px; line-height: 2; }
+    .help-body h3 { font-family: "Ma Shan Zheng", "KaiTi", serif; font-weight: normal; font-size: 19px; margin: 14px 0 4px; color: var(--cinnabar); letter-spacing: 2px; }
+    .help-body .k { display: inline-block; border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; margin: 0 2px; font-family: "Ma Shan Zheng", "KaiTi", serif; background: rgba(255,252,242,.7); }
+
+    @media (max-width: 720px) {
+      h1 { font-size: 18px; }
+      h1 .sub { display: none; }
+      .hud { gap: 10px; }
+      .stat { font-size: 11px; }
+      .stat b { font-size: 16px; }
+      .slot, .item-slot { width: 46px; height: 46px; }
+      .slot .ch { font-size: 22px; }
+      #sell-box { width: 52px; font-size: 11px; }
+      .dock { gap: 8px; padding: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="home-link" href="../../index.html">← 主页</a>
+    <h1 class="bf">赵云与阿斗<span class="sub">水墨文字塔防 · 无尽守城</span></h1>
+    <div class="hud">
+      <div class="stat">馒头 <b id="hud-mantou">70</b></div>
+      <div class="stat">第 <b id="hud-wave">0</b> 波</div>
+      <div class="stat"><span class="hearts" id="hud-hearts">❤❤❤❤❤</span></div>
+      <div class="stat">斩 <b id="hud-kills">0</b></div>
+      <button class="icon-btn" id="btn-speed" title="游戏速度">1×</button>
+      <button class="icon-btn" id="btn-pause" title="暂停">⏸ 暂停</button>
+      <button class="icon-btn" id="btn-sound" title="音效">♪ 音效</button>
+      <button class="icon-btn" id="btn-dex">图鉴</button>
+      <button class="icon-btn" id="btn-help">玩法</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <canvas id="field"></canvas>
+  </div>
+
+  <div class="dock">
+    <div class="summon-col">
+      <button id="btn-summon">征 兵</button>
+      <div class="cost-hint">消耗 <b id="summon-cost">10</b> 馒头 · 一次征满 5 字</div>
+    </div>
+
+    <div class="dock-block">
+      <div class="dock-label">待命区（槽位间可拖拽合并 / 排序，与场上互拖）</div>
+      <div class="bench-row" id="bench-row"></div>
+    </div>
+
+    <div class="dock-block">
+      <div class="dock-label">弃置（拖入出售）</div>
+      <div id="sell-box">弃<br>出售</div>
+    </div>
+
+    <div class="dock-block">
+      <div class="dock-label">道具（点击使用）</div>
+      <div class="item-slots">
+        <div class="item-slot" id="item-slot-0"><span class="key">Q</span></div>
+        <div class="item-slot" id="item-slot-1"><span class="key">W</span></div>
+      </div>
+    </div>
+
+    <div class="dock-block" style="flex: 1; min-width: 170px;">
+      <div class="dock-label">被动增益
+        <button id="btn-wave">⚔ 立即开战</button>
+      </div>
+      <div class="passive-row" id="passive-row"><span style="font-size:11px;color:var(--ink-dim)">击败 Boss（每 5 波）可随机抽取道具</span></div>
+    </div>
+  </div>
+
+  <div id="toast-wrap"></div>
+
+  <!-- 卷轴抽道具 -->
+  <div class="modal-mask" id="scroll-mask">
+    <div class="scroll-box" id="scroll-box">
+      <div class="item-type" id="sc-type">—— 战利品 ——</div>
+      <div class="item-icon" id="sc-icon">符</div>
+      <div class="item-name" id="sc-name">攻速符</div>
+      <div class="item-desc" id="sc-desc">全军攻速 +15%</div>
+      <div class="tap-hint">点击任意处收起</div>
+    </div>
+  </div>
+
+  <!-- 图鉴 -->
+  <div class="modal-mask" id="dex-mask">
+    <div class="modal">
+      <button class="close-x" data-close="dex-mask">✕</button>
+      <h2>武将图鉴</h2>
+      <div style="font-size:12px;color:var(--ink-dim)">凑齐全名两块碎片（同场摆放后拖到一起）即可激活。已收集 <b id="dex-count">0</b> / 16</div>
+      <div class="dex-grid" id="dex-grid"></div>
+    </div>
+  </div>
+
+  <!-- 玩法说明 -->
+  <div class="modal-mask" id="help-mask">
+    <div class="modal">
+      <button class="close-x" data-close="help-mask">✕</button>
+      <h2>玩法说明</h2>
+      <div class="help-body">
+        <h3>目标</h3>
+        敌军沿墨色长路奔袭「阿斗」（右下角，5 颗心）。拦住它们，撑过尽可能多的波次！
+        <h3>征兵与布阵</h3>
+        点<span class="k">征兵</span>消耗馒头，<b>一次征满 5 个字</b>（重新随机，待命区原有字会被替换）——<span class="k">刀</span><span class="k">枪</span><span class="k">剑</span><span class="k">弓</span>四种兵种自动攻击射程内之敌；<span class="k">铲</span>可开垦未开发格或铲除场上的字。
+        <h3>拖拽规则</h3>
+        <b>待命区 ↔ 待命区</b>：同类同级拖到一起二合一升级（最高 7 级），不同字互换位置排序；<b>待命区 ↔ 场上</b>：可互相拖放，也可以同类同级合并；拖入<span class="k">弃</span>出售周转。
+        <h3>武将激活</h3>
+        征兵有几率抽到武将碎片（如<span class="k">赵</span><span class="k">云</span>）。同场凑齐全名两字并拖到一起，即激活强力武将，自带大招（定时自动释放）。<b>共享字</b>（张／黄）可跨势力拼合，选择权在你。
+        <h3>道具</h3>
+        每守过 5 波（Boss 波）随机抽取一件道具：被动即时生效可叠加；主动装在道具栏（最多 2 件），点击或按 <b>Q / W</b> 使用。<b>毛笔</b>可把场上任意一个字改写成其他字，是凑武将的神技。
+        <h3>经济</h3>
+        击杀得馒头、波次有犒赏；召唤费用逐次递增。多余的字拖入<span class="k">弃</span>出售周转。
+      </div>
+    </div>
+  </div>
+
+  <!-- 结算 -->
+  <div class="modal-mask" id="over-mask">
+    <div class="modal over-box">
+      <div class="big">长坂坡 · 陷阵</div>
+      <div class="row">坚守至</div>
+      <div class="wave-no"><span id="ov-wave">0</span><span style="font-size:22px;color:var(--ink-dim)"> 波</span></div>
+      <div class="row">斩敌 <b id="ov-kills">0</b> · 用时 <b id="ov-time">0:00</b></div>
+      <div class="row" id="ov-generals"></div>
+      <div class="row best" id="ov-best"></div>
+      <button onclick="location.reload()">再 战</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+      var D = window.ZY_DATA;
+
+      /* ---------- DOM ---------- */
+      var $ = function (id) { return document.getElementById(id); };
+      var page = {
+        canvas: $("field"),
+        elWave: $("hud-wave"), elMantou: $("hud-mantou"), elCost: $("summon-cost"),
+        elHearts: $("hud-hearts"), elKills: $("hud-kills"),
+        benchRow: $("bench-row"), sellBox: $("sell-box"),
+        passiveRow: $("passive-row"), btnWave: $("btn-wave")
+      };
+
+      /* ---------- localStorage ---------- */
+      var store = {
+        get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+        set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+      };
+      var dex = store.get("zy_dex", {});
+      var best = store.get("zy_best", 0);
+
+      /* ---------- Toast ---------- */
+      page.toast = function (msg) {
+        var el = document.createElement("div");
+        el.className = "toast";
+        el.textContent = msg;
+        $("toast-wrap").appendChild(el);
+        setTimeout(function () { el.remove(); }, 2800);
+        /* 最多保留 4 条 */
+        var wraps = $("toast-wrap").children;
+        while (wraps.length > 4) wraps[0].remove();
+      };
+
+      /* 全局错误浮出（避免静默白屏） */
+      window.addEventListener("error", function (ev) {
+        try { page.toast("⚠ 运行异常：" + (ev.message || "未知错误") + " @" + (ev.filename || "").split("/").pop() + ":" + ev.lineno); } catch (e) {}
+      });
+
+      /* ---------- 弹窗 ---------- */
+      document.querySelectorAll(".close-x").forEach(function (btn) {
+        btn.addEventListener("click", function () { $(btn.dataset.close).classList.remove("show"); });
+      });
+      document.querySelectorAll(".modal-mask").forEach(function (mask) {
+        /* 结算弹窗不可点背景关闭（仅「再战」退出）；其余弹窗点背景可关 */
+        if (mask.id === "over-mask" || mask.id === "scroll-mask") return;
+        mask.addEventListener("click", function (ev) {
+          if (ev.target === mask) mask.classList.remove("show");
+        });
+      });
+
+      /* ---------- 图鉴 ---------- */
+      function renderDex() {
+        var grid = $("dex-grid");
+        grid.innerHTML = "";
+        var got = 0;
+        D.GENERALS.forEach(function (g) {
+          if (dex[g.id]) got++;
+          var q = D.QUALITY[g.quality], f = D.FACTION[g.faction];
+          var card = document.createElement("div");
+          card.className = "dex-card" + (dex[g.id] ? "" : " locked");
+          card.innerHTML =
+            '<div class="face" style="background:' + f.color + '">' + g.name[0] + '</div>' +
+            '<div class="info">' +
+              '<div class="nm">' + g.name + '<span class="q" style="background:' + q.color + '">' + q.name + '</span>' +
+              '<span class="tag-faction">' + f.name + ' · ' + D.TROOPS[g.troop].ch + '</span></div>' +
+              '<div class="sk"><b>' + g.skill.name + '</b>：' + g.skill.desc + '<br>碎片：' + g.chars.join(" + ") + '</div>' +
+            '</div>';
+          grid.appendChild(card);
+        });
+        $("dex-count").textContent = got;
+      }
+      $("btn-dex").addEventListener("click", function () { renderDex(); $("dex-mask").classList.add("show"); });
+      $("btn-help").addEventListener("click", function () { $("help-mask").classList.add("show"); });
+
+      /* ---------- 卷轴抽道具 ---------- */
+      var scrollQueue = [];
+      function showScroll(item) {
+        scrollQueue.push(item);
+        if (!$("scroll-mask").classList.contains("show")) nextScroll();
+      }
+      function nextScroll() {
+        if (!scrollQueue.length) { $("scroll-mask").classList.remove("show"); return; }
+        var item = scrollQueue.shift();
+        $("sc-icon").textContent = item.icon;
+        $("sc-name").textContent = item.name;
+        $("sc-desc").textContent = item.desc;
+        $("sc-type").textContent = item.type === "passive" ? "—— 被动 · 即时生效 ——" : "—— 主动 · 装入道具栏 ——";
+        $("scroll-mask").classList.add("show");
+      }
+      $("scroll-mask").addEventListener("click", function () {
+        /* 稍延迟避免误触 */
+        setTimeout(nextScroll, 120);
+      });
+      page.showItemScroll = showScroll;
+
+      /* ---------- 结算 ---------- */
+      page.showGameOver = function (result, eng) {
+        $("ov-wave").textContent = result.wave;
+        $("ov-kills").textContent = result.kills;
+        var m = Math.floor(result.time / 60), s = result.time % 60;
+        $("ov-time").textContent = m + ":" + (s < 10 ? "0" : "") + s;
+        $("ov-generals").innerHTML = result.generals.length
+          ? "麾下武将：" + result.generals.join("、")
+          : "本局未能激活武将（凑齐两块碎片试试）";
+        var isBest = result.wave > best;
+        if (isBest) { best = result.wave; store.set("zy_best", best); }
+        $("ov-best").textContent = isBest
+          ? "★ 新纪录！历史最佳：" + best + " 波"
+          : "历史最佳：" + best + " 波";
+        setTimeout(function () { $("over-mask").classList.add("show"); }, 1200);
+      };
+
+      /* ---------- HUD 同步 ---------- */
+      var benchCache = "";
+      page.syncBench = function (bench) {
+        var sig = bench.map(function (b) { return b.kind + b.ch + b.level; }).join(",");
+        if (sig === benchCache) {
+          /* 拖拽中源槽减淡 */
+          markDrag();
+          return;
+        }
+        benchCache = sig;
+        page.benchRow.innerHTML = "";
+        for (var i = 0; i < D.SUMMON.benchMax; i++) {
+          var slot = document.createElement("div");
+          var it = bench[i];
+          if (it) {
+            slot.className = "slot " + it.kind;
+            slot.innerHTML = '<span class="ch">' + it.ch + '</span>' +
+              (it.kind !== "shovel" ? '<span class="lv">Lv.' + it.level + '</span>' : "");
+            slot.dataset.bench = i;
+            if (it.kind === "char") slot.title = "武将碎片：可与 " + pairHint(it.ch) + " 拼合";
+          } else {
+            slot.className = "slot slot-empty";
+          }
+          page.benchRow.appendChild(slot);
+        }
+        markDrag();
+      };
+      function markDrag() {
+        var d = game && game.drag;
+        var slots = page.benchRow.children;
+        for (var i = 0; i < slots.length; i++) {
+          slots[i].classList.toggle("dragging", !!(d && d.from.from === "bench" && d.from.idx === i));
+        }
+      }
+      function pairHint(ch) {
+        var ids = D.CHAR_MAP[ch] || [];
+        return ids.map(function (id) {
+          var g = null; D.GENERALS.forEach(function (x) { if (x.id === id) g = x; });
+          return g ? g.chars.filter(function (c) { return c !== ch; })[0] + "（" + g.name + "）" : "";
+        }).join(" / ");
+      }
+
+      var itemsCache = "";
+      page.syncItems = function (passives, actives) {
+        var sig = JSON.stringify(passives) + "|" + actives.join(",");
+        if (sig === itemsCache) return;
+        itemsCache = sig;
+        /* 主动槽 */
+        for (var i = 0; i < D.ACTIVE_SLOTS; i++) {
+          var el = $("item-slot-" + i);
+          var id = actives[i];
+          if (id) {
+            var it = null; D.ITEMS.forEach(function (x) { if (x.id === id) it = x; });
+            el.className = "item-slot filled";
+            el.innerHTML = '<span class="ch">' + it.icon + '</span><span class="key">' + (i === 0 ? "Q" : "W") + '</span>';
+            el.title = it.name + "：" + it.desc;
+            el.dataset.slot = i;
+          } else {
+            el.className = "item-slot";
+            el.innerHTML = '<span class="key">' + (i === 0 ? "Q" : "W") + '</span>';
+            el.title = "空";
+          }
+        }
+        /* 被动栏 */
+        var keys = Object.keys(passives);
+        if (!keys.length) {
+          page.passiveRow.innerHTML = '<span style="font-size:11px;color:var(--ink-dim)">击败 Boss（每 5 波）可随机抽取道具</span>';
+        } else {
+          page.passiveRow.innerHTML = keys.map(function (k) {
+            var it = null; D.ITEMS.forEach(function (x) { if (x.id === k) it = x; });
+            return '<span class="passive-chip">' + it.icon + ' ' + it.name + ' ×<b>' + passives[k] + '</b></span>';
+          }).join("");
+        }
+      };
+
+      var phaseCache = "";
+      page.syncPhase = function (phase, timer) {
+        var show = phase === "prepare" || phase === "inter";
+        page.btnWave.style.display = show ? "inline-block" : "none";
+        if (show) page.btnWave.textContent = "⚔ " + Math.ceil(timer) + "s 后开战（点击提前）";
+        if (phaseCache !== phase) {
+          phaseCache = phase;
+          $("btn-summon").disabled = phase === "over";
+        }
+      };
+      page.inSellArea = function (x, y) {
+        var r = page.sellBox.getBoundingClientRect();
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      };
+      /* 待命区槽位命中：返回槽位下标，未命中 -1 */
+      page.benchSlotAt = function (x, y) {
+        var slots = page.benchRow.children;
+        for (var i = 0; i < slots.length; i++) {
+          var r = slots[i].getBoundingClientRect();
+          if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
+        }
+        return -1;
+      };
+      page.setTargeting = function (on) {
+        var old = document.querySelector(".targeting-tip");
+        if (old) old.remove();
+        if (on) {
+          var tip = document.createElement("div");
+          tip.className = "targeting-tip";
+          tip.textContent = "毛笔已蘸墨 —— 点击场上要改写的字";
+          document.querySelector(".stage").appendChild(tip);
+        }
+      };
+
+      /* ---------- 启动游戏 ---------- */
+      var game = new ZhaoyunGame(page);
+      window.__zy = game;   // 调试用
+
+      /* ?debug=1：把画布几何写入 title（自动化测试/排查用） */
+      if (location.search.indexOf("debug=1") >= 0) {
+        var dbgLog = [];
+        ["pointerdown", "pointerup"].forEach(function (t) {
+          document.addEventListener(t, function (ev) {
+            var tg = ev.target;
+            var name = (tg.className && typeof tg.className === "string" ? tg.className : "") +
+              "#" + (tg.id || "") + ":" + tg.tagName;
+            dbgLog.push(t.slice(6) + "@" + Math.round(ev.clientX) + "," + Math.round(ev.clientY) + "→" + name.slice(0, 22));
+            if (dbgLog.length > 3) dbgLog.shift();
+          }, true);
+        });
+        setInterval(function () {
+          var r = page.canvas.getBoundingClientRect();
+          var e = window.__zy.engine;
+          /* 采样三类格子像素：道路格(应深) / 布置格(应亮) / 未开发格(应暗纹) */
+          function sample(cell) {
+            var cx = Math.floor(cell.x / 960 * page.canvas.width);
+            var cy = Math.floor(cell.y / 640 * page.canvas.height);
+            try {
+              var d = page.canvas.getContext("2d").getImageData(cx, cy, 1, 1).data;
+              return d[0] + "," + d[1] + "," + d[2];
+            } catch (err) { return "err"; }
+          }
+          var pathCell = null, buildCell = null, wildCell = null;
+          for (var ci = 0; ci < e.cells.length; ci++) {
+            var cc = e.cells[ci];
+            if (!pathCell && cc.type === "path") pathCell = cc;
+            if (!buildCell && cc.type === "build") buildCell = cc;
+            if (!wildCell && cc.type === "wild") wildCell = cc;
+          }
+          document.title = "DBG hidden=" + (document.hidden ? 1 : 0) +
+            " raf=" + (window.__zy && window.__zy._rafFired ? window.__zy._rafFired : 0) +
+            " 路=" + (pathCell ? sample(pathCell) : "-") +
+            " 布=" + (buildCell ? sample(buildCell) : "-") +
+            " 荒=" + (wildCell ? sample(wildCell) : "-") +
+            " canvas " + Math.round(r.left) + "," + Math.round(r.top) +
+            " " + Math.round(r.width) + "x" + Math.round(r.height) +
+            " phase=" + e.phase + " wave=" + e.wave + " kills=" + e.kills +
+            " hearts=" + e.hearts + " enemies=" + e.enemies.length +
+            " bench=[" + e.bench.map(function (b) { return b.ch + (b.kind === "char" ? "*" : ""); }).join("") + "]" +
+            " items=" + e.activeItems.length +
+            " ev=[" + dbgLog.join("|") + "]";
+        }, 400);
+      }
+
+      /* ---------- 控件 ---------- */
+      $("btn-summon").addEventListener("click", function () {
+        game.drag = null;   // 征兵重掷待命区，取消进行中的拖拽
+        game.engine.summon();
+      });
+      page.btnWave.addEventListener("click", function () { game.engine.startEarly(); });
+      $("btn-speed").addEventListener("click", function () {
+        game.speed = game.speed === 1 ? 2 : 1;
+        this.textContent = game.speed + "×";
+        this.classList.toggle("on", game.speed === 2);
+      });
+      $("btn-pause").addEventListener("click", function () {
+        game.paused = !game.paused;
+        this.textContent = game.paused ? "▶ 继续" : "⏸ 暂停";
+        this.classList.toggle("on", game.paused);
+      });
+      $("btn-sound").addEventListener("click", function () {
+        game.sfx.enabled = !game.sfx.enabled;
+        if (game.sfx.enabled) game.sfx.init();
+        this.classList.toggle("on", !game.sfx.enabled);
+        this.textContent = game.sfx.enabled ? "♪ 音效" : "♪ 静音";
+      });
+
+      /* 待命区拖拽起点 */
+      page.benchRow.addEventListener("pointerdown", function (ev) {
+        var slotEl = ev.target.closest(".slot[data-bench]");
+        if (!slotEl || game.engine.phase === "over") return;
+        var idx = +slotEl.dataset.bench;
+        /* 毛笔目标：待命区的字 */
+        if (game.targeting !== null) {
+          var r = game.engine.useActive(game.targeting, { from: "bench", idx: idx });
+          if (r === true) { game.targeting = null; page.setTargeting(false); }
+          return;
+        }
+        if (game.engine.bench[idx]) game.startBenchDrag(idx, ev.clientX, ev.clientY);
+      });
+
+      /* 主动道具点击 */
+      [0, 1].forEach(function (i) {
+        $("item-slot-" + i).addEventListener("click", function () {
+          if (game.engine.phase === "over" || !game.engine.activeItems[i]) return;
+          var r = game.engine.useActive(i);
+          if (r === "targeting") {
+            /* 毛笔：进入选字模式（再次点击取消） */
+            if (game.targeting === i) { game.targeting = null; page.setTargeting(false); }
+            else { game.targeting = i; page.setTargeting(true); }
+          }
+        });
+      });
+      /* 键盘 Q/W 用道具、空格征兵 */
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key === "q" || ev.key === "Q") $("item-slot-0").click();
+        else if (ev.key === "w" || ev.key === "W") $("item-slot-1").click();
+        else if (ev.code === "Space") { ev.preventDefault(); game.engine.summon(); }
+        else if (ev.key === "Escape" && game.targeting !== null) { game.targeting = null; page.setTargeting(false); }
+      });
+
+      /* 拖拽中弃置区高亮 */
+      document.addEventListener("pointermove", function () {
+        if (game && game.drag) {
+          var d = game.drag;
+          page.sellBox.classList.toggle("hot", page.inSellArea(d.x, d.y));
+        } else page.sellBox.classList.remove("hot");
+      });
+
+      /* 收集图鉴：武将激活 */
+      page.onGeneral = function (gid) {
+        if (!dex[gid]) { dex[gid] = 1; store.set("zy_dex", dex); }
+      };
+    })();
+  </script>
+</body>
+</html>
