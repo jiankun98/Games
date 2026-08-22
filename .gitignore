@@ -13,3 +13,6 @@
 /.workbuddy/
 # ZCode 会话工作目录（非项目内容）
 /.zcode/
+
+# 商业帝国移动版（Vite 工程依赖，dist 产物需提交）
+games/empire/node_modules/
