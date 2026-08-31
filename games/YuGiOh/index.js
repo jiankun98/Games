@@ -399,7 +399,7 @@ class Duel {
             if (responder === "me")
                 action = await this._ask("chain", { event, options: chainable });
             else {
-                action = this.ai.decideChain(responder, event, chainable);
+                action = await this.ai.decideChain(responder, event, chainable); // await 兼容异步 AI（如 LlmPlayer），内置 AI 返回纯值不受影响
                 await this.delay(this.aiDelay);
             }
             if (!action || action.pass) {
@@ -751,7 +751,7 @@ class Duel {
                 idx = await this._ask("select", { msg: `丢弃 ${n - k} 张手卡`, options: opts, selectOne: true });
             }
             else {
-                idx = this.ai.pickDiscard(p.hand);
+                idx = await this.ai.pickDiscard(p.hand); // await 兼容异步 AI
             }
             const c = p.hand.splice(idx, 1)[0];
             await this._sendToGrave(c, "hand", "discard");
@@ -1125,7 +1125,7 @@ class Duel {
                 idx = await this._ask("select", { msg: "手卡超过6张，请丢弃1张。", options: opts, selectOne: true });
             }
             else {
-                idx = this.ai.pickDiscard(p.hand);
+                idx = await this.ai.pickDiscard(p.hand); // await 兼容异步 AI
             }
             const c = p.hand.splice(idx, 1)[0];
             await this._sendToGrave(c, "hand", "discard");

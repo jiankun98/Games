@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#141210"/>
+  <circle cx="64" cy="64" r="46" fill="#2a1710"/>
+  <!-- 剑身 -->
+  <path d="M64 22 L72 38 L72 86 L64 96 L56 86 L56 38 Z" fill="#d9a441"/>
+  <path d="M64 22 L64 96 L56 86 L56 38 Z" fill="#b8862f"/>
+  <!-- 护手 -->
+  <rect x="44" y="84" width="40" height="8" rx="4" fill="#8c5a2b"/>
+  <!-- 剑柄 -->
+  <rect x="60" y="92" width="8" height="18" rx="4" fill="#6b4220"/>
+  <!-- 火焰 -->
+  <path d="M40 52 C34 60 36 72 44 78 C40 66 46 58 52 54 C50 62 54 68 60 70 C48 72 44 60 40 52 Z" fill="#e2532c" opacity="0.9"/>
+  <path d="M92 58 C98 66 94 76 86 80 C90 70 84 62 78 58 C80 66 76 72 70 74 C82 76 88 66 92 58 Z" fill="#e2532c" opacity="0.75"/>
+</svg>

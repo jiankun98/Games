@@ -16,3 +16,9 @@
 
 # 商业帝国移动版（Vite 工程依赖，dist 产物需提交）
 games/empire/node_modules/
+
+# 传奇觉醒（Vite 依赖提交 dist；数据库与素材大文件不提交）
+games/legend/node_modules/
+games/legend/server/*.db
+games/legend/server/*.db-*
+games/legend/public/assets/sheets/

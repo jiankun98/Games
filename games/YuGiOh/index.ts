@@ -535,7 +535,7 @@ class Duel {
       if (!chainable.length) { consecPass++; responder = this.opp(responder); continue; }
       let action: ChainDecision | null;
       if (responder === "me") action = await this._ask("chain", { event, options: chainable }) as ChainDecision;
-      else { action = this.ai.decideChain(responder, event, chainable); await this.delay(this.aiDelay); }
+      else { action = await this.ai.decideChain(responder, event, chainable); await this.delay(this.aiDelay); } // await 兼容异步 AI（与 index.js 保持同步）
       if (!action || action.pass) { consecPass++; responder = this.opp(responder); continue; }
       consecPass = 0;
       // 激活被连锁的卡
@@ -822,7 +822,7 @@ class Duel {
         const opts = p.hand.map((c, i) => ({ value: i, label: c.name, card: c }));
         idx = await this._ask("select", { msg: `丢弃 ${n - k} 张手卡`, options: opts, selectOne: true }) as number;
       } else {
-        idx = this.ai.pickDiscard(p.hand);
+        idx = await this.ai.pickDiscard(p.hand); // await 兼容异步 AI（与 index.js 保持同步）
       }
       const c = p.hand.splice(idx, 1)[0];
       await this._sendToGrave(c, "hand", "discard");
@@ -1107,7 +1107,7 @@ class Duel {
         const opts = p.hand.map((c, i) => ({ value: i, label: c.name, card: c }));
         idx = await this._ask("select", { msg: "手卡超过6张，请丢弃1张。", options: opts, selectOne: true }) as number;
       } else {
-        idx = this.ai.pickDiscard(p.hand);
+        idx = await this.ai.pickDiscard(p.hand); // await 兼容异步 AI（与 index.js 保持同步）
       }
       const c = p.hand.splice(idx, 1)[0];
       await this._sendToGrave(c, "hand", "discard");

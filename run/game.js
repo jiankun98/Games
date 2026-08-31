@@ -36,12 +36,15 @@ app.use(express.static(ROOT));
 app.post("/api/llm", async (req, res) => {
   try {
     const { baseUrl, apiKey, model, messages, temperature, stream } = req.body || {};
-    const base = (baseUrl || serverCfg.baseUrl || "").replace(/\/+$/, "");
+    const base = (baseUrl || serverCfg.baseUrl || "").replace(/\/+$/, ""); 
     const key = apiKey || serverCfg.apiKey || "";
     if (!base) return res.status(400).json({ error: "缺少 baseUrl（请在「大模型」页填写 Base URL）" });
 
     const url = base + "/chat/completions";
+    // 白名单透传：thinking/max_tokens/response_format 供思考型模型与结构化输出使用
     const payload = { model, messages, temperature, stream: !!stream };
+    for (const k of ["thinking", "max_tokens", "response_format", "reasoning_effort"])
+      if (req.body && req.body[k] !== undefined) payload[k] = req.body[k];
     const headers = { "Content-Type": "application/json" };
     if (key) headers["Authorization"] = "Bearer " + key;
 
@@ -50,6 +53,7 @@ app.post("/api/llm", async (req, res) => {
       headers,
       body: JSON.stringify(payload),
     });
+    console.log(url); // 日志
 
     const ct = upstream.headers.get("content-type") || "";
 
@@ -83,6 +87,14 @@ app.post("/api/llm", async (req, res) => {
   }
 });
 
+// 传奇觉醒后端：账号 / 云存档 / 排行榜（SQLite 存 games/legend/server/legend.db）
+try {
+  const legendRouter = require("../games/legend/server/router.js");
+  app.use("/api/legend", legendRouter);
+} catch (e) {
+  console.warn("  [legend] 传奇后端加载失败：" + ((e && e.message) || e));
+}
+
 // 图片代理：3D 游戏王立绘等外域图片（Canvas 纹理必须同源，故本地代理）
 // 仅允许 https 且域名白名单，防止 SSRF
 const IMG_HOSTS = new Set(["images.ygoprodeck.com"]);
@@ -111,4 +123,13 @@ app.listen(PORT, () => {
   console.log("  游戏主页: http://localhost:" + PORT + "/index.html");
   console.log("  代理接口: POST /api/llm  GET /api/img");
   if (serverCfg.baseUrl) console.log("  已加载服务端配置: " + serverCfg.baseUrl + (serverCfg.apiKey ? "（含密钥）" : "（无密钥）"));
+  // 局域网地址（手机同 WiFi 访问；首次需在 Windows 防火墙放行 Node）
+  const os = require("os");
+  const lan = [];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const ni of list || []) {
+      if (ni.family === "IPv4" && !ni.internal) lan.push("http://" + ni.address + ":" + PORT + "/games/legend/");
+    }
+  }
+  if (lan.length) console.log("  手机访问(传奇觉醒): " + lan.join("  "));
 });

@@ -7,6 +7,7 @@
     <script src="./cards.js?v=2"></script>
     <script src="./index.js?v=2"></script>
     <script src="./ai-player.js?v=2"></script>
+    <script src="./llm-player.js?v=1"></script>
     <style>
       :root {
         --bg: #0b0e16;
@@ -23,6 +24,17 @@
         --lp-me: #4aa3ff;
         --lp-ai: #e5484d;
         --ok: #43b581;
+        /* 设计令牌：统一圆角阶梯与辉光/投影，避免一次性数值散落 */
+        --r-xs: 6px;
+        --r-sm: 9px;
+        --r-md: 12px;
+        --r-lg: 16px;
+        --r-xl: 20px;
+        --glass: rgba(15, 19, 31, 0.82);
+        --shadow-pop: 0 14px 40px rgba(0, 0, 0, 0.55);
+        --glow-gold: 0 0 18px rgba(230, 178, 74, 0.35);
+        --glow-gold-strong:
+          0 0 28px rgba(230, 178, 74, 0.55), 0 4px 18px rgba(230, 178, 74, 0.25);
       }
       * {
         box-sizing: border-box;
@@ -71,6 +83,20 @@
       header .title b {
         color: var(--accent);
       }
+      /* 顶部 3D 徽标 */
+      header .title .b3d {
+        display: inline-block;
+        margin-left: 2px;
+        padding: 1px 6px;
+        border-radius: var(--r-xs);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        color: #1a1208;
+        background: linear-gradient(160deg, #f4cd72, #c89432);
+        box-shadow: var(--glow-gold);
+        transform: translateY(-1px);
+      }
       .phase-tag {
         padding: 4px 12px;
         border-radius: 12px;
@@ -98,34 +124,62 @@
         flex: 1;
       }
       .icon-btn {
-        width: 32px;
+        width: 34px;
         height: 32px;
         display: grid;
         place-items: center;
         cursor: pointer;
         background: var(--panel-2);
         border: 1px solid var(--border);
-        border-radius: 8px;
-        font-size: 15px;
+        border-radius: var(--r-sm);
         color: var(--text);
+        padding: 0;
+        font: inherit;
         transition: all 0.15s;
+      }
+      .icon-btn svg {
+        width: 17px;
+        height: 17px;
+        display: block;
       }
       .icon-btn:hover {
         border-color: var(--accent);
         color: var(--accent);
+        background: rgba(230, 178, 74, 0.08);
         transform: translateY(-1px);
+        box-shadow: var(--glow-gold);
       }
       .btn {
         background: linear-gradient(180deg, var(--accent), #c89432);
         color: #1a1208;
         border: none;
-        border-radius: 8px;
+        border-radius: var(--r-sm);
         padding: 7px 14px;
         font-size: 13px;
         font-weight: 700;
         cursor: pointer;
         box-shadow: 0 2px 8px rgba(230, 178, 74, 0.3);
         transition: all 0.15s;
+        position: relative;
+        overflow: hidden;
+      }
+      /* 主按钮 hover 扫光 */
+      .btn::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          110deg,
+          transparent 35%,
+          rgba(255, 255, 255, 0.45) 50%,
+          transparent 65%
+        );
+        transform: translateX(-110%);
+        pointer-events: none;
+      }
+      .btn:hover::after {
+        transition: transform 0.5s ease;
+        transform: translateX(110%);
       }
       .btn:hover {
         filter: brightness(1.1);
@@ -143,6 +197,9 @@
         border: 1px solid var(--border);
         box-shadow: none;
       }
+      .btn.ghost::after {
+        display: none;
+      }
 
       /* ============ 布局 ============ */
       .board {
@@ -158,11 +215,53 @@
         align-items: center;
         gap: 10px;
         padding: 0 6px;
+        border-radius: var(--r-xs);
+        transition: background 0.4s;
+      }
+      /* 当前行动方的 LP 行：呼吸光晕标识回合归属 */
+      .lp-row.active {
+        background: linear-gradient(
+          90deg,
+          rgba(74, 163, 255, 0.07),
+          transparent 60%
+        );
+      }
+      .lp-row.ai-side.active {
+        background: linear-gradient(
+          90deg,
+          rgba(229, 72, 77, 0.08),
+          transparent 60%
+        );
       }
       .lp-name {
         font-size: 13px;
         font-weight: 700;
         width: 56px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+      }
+      .lp-name::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: 0.35;
+        transition:
+          opacity 0.3s,
+          box-shadow 0.3s;
+      }
+      .lp-row.active .lp-name::before {
+        opacity: 1;
+        box-shadow: 0 0 8px currentColor;
+        animation: lpPulse 2.2s ease-in-out infinite;
+      }
+      @keyframes lpPulse {
+        50% {
+          opacity: 0.55;
+        }
       }
       .lp-name.ai {
         color: var(--lp-ai);
@@ -172,16 +271,30 @@
       }
       .lp-bar {
         flex: 1;
-        height: 12px;
-        background: rgba(0, 0, 0, 0.4);
+        height: 13px;
+        background: rgba(0, 0, 0, 0.45);
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: var(--r-sm);
         overflow: hidden;
         position: relative;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.55);
       }
       .lp-fill {
         height: 100%;
+        border-radius: 0 var(--r-xs) var(--r-xs) 0;
         transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+        position: relative;
+      }
+      .lp-fill::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          rgba(255, 255, 255, 0.38),
+          rgba(255, 255, 255, 0.06) 45%,
+          transparent
+        );
+        pointer-events: none;
       }
       .lp-fill.me {
         background: linear-gradient(90deg, #1e5fa0, var(--lp-me));
@@ -195,6 +308,19 @@
         width: 52px;
         text-align: right;
         font-variant-numeric: tabular-nums;
+        display: inline-block;
+      }
+      .lp-val.bump {
+        animation: lpBump 0.42s cubic-bezier(0.2, 1.4, 0.4, 1);
+      }
+      @keyframes lpBump {
+        30% {
+          transform: scale(1.28);
+          color: #ff9d9d;
+        }
+        100% {
+          transform: scale(1);
+        }
       }
 
       /* 3D 舞台 */
@@ -216,10 +342,14 @@
         top: 10px;
         z-index: 3;
         font-size: 11px;
-        color: var(--dim);
-        background: rgba(16, 20, 32, 0.6);
-        border-radius: 8px;
-        padding: 4px 10px;
+        color: #aab4c8;
+        background: var(--glass);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(50, 64, 86, 0.6);
+        border-radius: var(--r-sm);
+        padding: 5px 11px;
+        letter-spacing: 0.3px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
         pointer-events: none;
       }
       /* 堆数量标签（投影到 3D 场景上的 DOM 小签） */
@@ -228,12 +358,14 @@
         z-index: 3;
         transform: translate(-50%, -50%);
         pointer-events: none;
-        background: rgba(16, 20, 32, 0.75);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 1px 6px;
+        background: var(--glass);
+        backdrop-filter: blur(4px);
+        border: 1px solid rgba(230, 178, 74, 0.25);
+        border-radius: var(--r-xs);
+        padding: 1px 7px;
         font-size: 10px;
-        color: var(--text);
+        color: #d7dce6;
+        letter-spacing: 0.5px;
         white-space: nowrap;
       }
 
@@ -281,7 +413,7 @@
       }
       .tb-btn {
         border: none;
-        border-radius: 18px;
+        border-radius: var(--r-xl);
         padding: 0 18px;
         height: 37px;
         font-size: 13px;
@@ -293,12 +425,34 @@
           box-shadow 0.12s ease;
         white-space: nowrap;
         min-width: 116px;
-        text-align: center; /* 固定宽高：文案切换（含 emoji 字形高度差异）不引起布局抖动 */
+        text-align: center; /* 固定宽高：文案切换（含图标字形高度差异）不引起布局抖动 */
       }
       .tb-btn.primary {
         background: linear-gradient(180deg, var(--accent), #c89432);
         color: #1a1208;
         box-shadow: 0 3px 12px rgba(230, 178, 74, 0.4);
+      }
+      /* 主按钮 hover 扫光（与顶栏 .btn 同款语言） */
+      .tb-btn.primary {
+        position: relative;
+        overflow: hidden;
+      }
+      .tb-btn.primary::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          110deg,
+          transparent 35%,
+          rgba(255, 255, 255, 0.45) 50%,
+          transparent 65%
+        );
+        transform: translateX(-110%);
+        pointer-events: none;
+      }
+      .tb-btn.primary:hover::after {
+        transition: transform 0.5s ease;
+        transform: translateX(110%);
       }
       .tb-btn.ghost {
         background: var(--panel-2);
@@ -559,20 +713,41 @@
         }
       }
       .modal {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 20px;
+        background:
+          linear-gradient(rgba(230, 178, 74, 0.04), transparent 90px),
+          var(--panel);
+        border: 1px solid rgba(50, 64, 86, 0.9);
+        box-shadow:
+          var(--shadow-pop),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        border-radius: var(--r-lg);
+        padding: 22px;
         max-width: 680px;
         width: 100%;
         max-height: 84vh;
         overflow-y: auto;
-        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+        position: relative;
         animation: popIn 0.18s ease;
+      }
+      .modal::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 12%;
+        right: 12%;
+        height: 2px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(230, 178, 74, 0.55),
+          transparent
+        );
+        pointer-events: none;
       }
       .modal h3 {
         margin: 0 0 14px;
         font-size: 16px;
+        letter-spacing: 1px;
       }
       .modal .opts {
         display: flex;
@@ -612,18 +787,60 @@
       }
       .gameover {
         text-align: center;
+        padding: 8px 0 4px;
       }
       .gameover h2 {
-        font-size: 32px;
-        margin: 10px 0;
+        font-size: 40px;
+        margin: 14px 0 10px;
+        letter-spacing: 12px;
+        text-indent: 12px;
+      }
+      /* 金属渐变标题：胜利鎏金 / 败北暗红 */
+      .gameover h2.win,
+      .gameover h2.lose {
+        background-clip: text;
+        -webkit-background-clip: text;
+        color: transparent;
       }
       .gameover h2.win {
-        color: var(--ok);
-        text-shadow: 0 0 20px rgba(67, 181, 129, 0.5);
+        background-image: linear-gradient(
+          180deg,
+          #f6e3a8 15%,
+          #e6b24a 55%,
+          #9a742a
+        );
+        filter: drop-shadow(0 0 18px rgba(230, 178, 74, 0.45));
       }
       .gameover h2.lose {
-        color: var(--lp-ai);
-        text-shadow: 0 0 20px rgba(229, 72, 77, 0.5);
+        background-image: linear-gradient(
+          180deg,
+          #ffb3ab 15%,
+          #e5484d 55%,
+          #7e2626
+        );
+        filter: drop-shadow(0 0 18px rgba(229, 72, 77, 0.4));
+      }
+      .gameover h2.draw {
+        color: var(--dim);
+      }
+      .gameover .go-sub {
+        color: var(--dim);
+        font-size: 13px;
+        letter-spacing: 2px;
+        margin: 0 0 18px;
+      }
+      .gameover::before {
+        content: "";
+        display: block;
+        height: 1px;
+        margin: 0 30%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--accent),
+          transparent
+        );
+        opacity: 0.5;
       }
       .pick-label {
         font-size: 13px;
@@ -635,8 +852,71 @@
       .pick-row {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 12px;
         justify-content: center;
+      }
+      /* 卡组选择磁贴（替代原先内联样式的卡背方块） */
+      .deck-tile {
+        width: 86px;
+        height: 120px;
+        border-radius: var(--r-md);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        position: relative;
+        border: 1px solid rgba(90, 110, 150, 0.35);
+        background:
+          radial-gradient(
+            circle at 50% 34%,
+            rgba(230, 178, 74, 0.14),
+            transparent 62%
+          ),
+          linear-gradient(165deg, #232c44, #161c2c);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.06),
+          0 3px 10px rgba(0, 0, 0, 0.4);
+        transition:
+          transform 0.15s ease,
+          box-shadow 0.15s ease,
+          border-color 0.15s ease;
+        cursor: pointer;
+        overflow: hidden;
+      }
+      .deck-tile:hover {
+        transform: translateY(-4px);
+        border-color: rgba(230, 178, 74, 0.65);
+        box-shadow: var(--glow-gold), 0 8px 18px rgba(0, 0, 0, 0.45);
+      }
+      .deck-tile .dt-em {
+        font-size: 32px;
+        line-height: 1.2;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+      }
+      .deck-tile .dt-name {
+        font-size: 11px;
+        color: #d7dce6;
+        padding: 0 4px;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        letter-spacing: 0.5px;
+      }
+      .opt.picked .deck-tile {
+        border-color: var(--accent);
+        box-shadow:
+          0 0 0 2px var(--accent),
+          var(--glow-gold-strong);
+        animation: pickedGlow 1.6s ease-in-out infinite;
+      }
+      @keyframes pickedGlow {
+        50% {
+          box-shadow:
+            0 0 0 2px var(--accent),
+            0 0 16px rgba(230, 178, 74, 0.45);
+        }
       }
       .opt.picked .card {
         box-shadow:
@@ -954,12 +1234,15 @@
         bottom: 130px;
         left: 50%;
         transform: translateX(-50%);
-        background: rgba(16, 20, 32, 0.95);
-        color: #fff;
-        padding: 9px 18px;
-        border-radius: 20px;
+        background: var(--glass);
+        backdrop-filter: blur(8px);
+        color: #f2f4f8;
+        padding: 10px 20px;
+        border-radius: var(--r-xl);
         font-size: 13px;
-        border: 1px solid var(--accent);
+        letter-spacing: 0.5px;
+        border: 1px solid rgba(230, 178, 74, 0.55);
+        box-shadow: var(--shadow-pop), inset 0 1px 0 rgba(255, 255, 255, 0.06);
         opacity: 0;
         transition:
           opacity 0.25s,
@@ -1008,28 +1291,11 @@
         text-shadow: 0 0 16px rgba(255, 120, 40, 0.9);
         transform: translate(-50%, -50%);
       }
-      .fx-act-banner,
       .fx-turn-banner {
         left: 0;
         right: 0;
-        text-align: center;
-      }
-      .fx-act-banner {
-        top: 30%;
-      }
-      .fx-act-txt {
-        display: inline-block;
-        background: rgba(10, 14, 24, 0.94);
-        border: 1px solid var(--accent);
-        border-radius: 12px;
-        padding: 8px 20px;
-        font-size: 16px;
-        font-weight: 700;
-        color: var(--accent);
-        box-shadow: 0 0 26px rgba(230, 178, 74, 0.35);
-      }
-      .fx-turn-banner {
         top: 34%;
+        text-align: center;
       }
       .turn-banner-inner {
         display: inline-block;
@@ -1110,6 +1376,234 @@
       .fx-phase-inner.ai b {
         color: var(--lp-ai);
       }
+
+      /* ============ 内联 SVG 图标排版 ============ */
+      .tb-btn svg {
+        width: 15px;
+        height: 15px;
+        vertical-align: -2px;
+        margin-right: 5px;
+      }
+      .card-chip svg {
+        width: 13px;
+        height: 13px;
+        vertical-align: -2px;
+        margin-right: 3px;
+      }
+      .card-menu .act-btn .ic svg {
+        width: 17px;
+        height: 17px;
+      }
+
+      /* ============ 大模型对手 ============ */
+      .llm-think {
+        position: fixed;
+        top: 96px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 46;
+        display: none;
+        align-items: center;
+        gap: 9px;
+        padding: 8px 18px;
+        border-radius: var(--r-xl);
+        background: var(--glass);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(230, 178, 74, 0.55);
+        color: #ffd98f;
+        font-size: 13px;
+        letter-spacing: 1px;
+        box-shadow: var(--glow-gold);
+        pointer-events: none;
+      }
+      .llm-think.show {
+        display: flex;
+        animation: popIn 0.18s ease;
+      }
+      .llm-think .tdot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: thinkPulse 1s ease-in-out infinite;
+      }
+      @keyframes thinkPulse {
+        50% {
+          opacity: 0.25;
+          transform: scale(0.7);
+        }
+      }
+      /* ============ 事件通知（串行队列：一次一条，引擎 await 播完再继续） ============ */
+      .event-notify {
+        position: fixed;
+        top: 140px;
+        left: 50%;
+        transform: translate(-50%, -10px);
+        z-index: 56;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 9px 20px;
+        border-radius: var(--r-xl);
+        background: var(--glass);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(230, 178, 74, 0.55);
+        color: #f2e8d5;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+        box-shadow: var(--glow-gold);
+        pointer-events: none;
+        opacity: 0;
+        transition:
+          opacity 0.18s ease,
+          transform 0.18s ease;
+      }
+      .event-notify.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+      .event-notify .en-ic {
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+      }
+      .event-notify .en-ic svg {
+        width: 16px;
+        height: 16px;
+        display: block;
+      }
+      .event-notify.k-damage,
+      .event-notify.k-destroy {
+        border-color: rgba(229, 72, 77, 0.65);
+        color: #ffd7d3;
+        box-shadow: 0 0 18px rgba(229, 72, 77, 0.35);
+      }
+      .event-notify.k-damage .en-ic,
+      .event-notify.k-destroy .en-ic {
+        color: #ff8d84;
+      }
+      .event-notify.k-draw {
+        border-color: rgba(74, 163, 255, 0.55);
+        box-shadow: 0 0 18px rgba(74, 163, 255, 0.3);
+      }
+      .event-notify.k-draw .en-ic {
+        color: var(--lp-me);
+      }
+      /* 大事件（发动魔法/陷阱）：居中大字横幅级别 */
+      .event-notify.big {
+        top: 31%;
+        font-size: 17px;
+        padding: 12px 28px;
+        border-width: 2px;
+        box-shadow: 0 0 30px rgba(230, 178, 74, 0.4);
+      }
+
+      /* 对手选择（内置 AI / 大模型） */
+      .opp-row {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+      }
+      .opp-opt {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 18px;
+        border-radius: var(--r-md);
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .opp-opt:hover {
+        border-color: rgba(230, 178, 74, 0.65);
+        transform: translateY(-1px);
+      }
+      .opp-opt.picked {
+        border-color: var(--accent);
+        color: #ffd98f;
+        background: rgba(230, 178, 74, 0.12);
+        box-shadow: 0 0 0 1px var(--accent), var(--glow-gold);
+      }
+      /* 大模型配置面板 */
+      .llm-cfg {
+        margin-top: 12px;
+        padding: 12px;
+        border: 1px solid rgba(230, 178, 74, 0.3);
+        border-radius: var(--r-md);
+        background: rgba(0, 0, 0, 0.22);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .llm-cfg .cfg-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 10px;
+      }
+      .llm-cfg label {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 11px;
+        color: var(--dim);
+        min-width: 0;
+      }
+      .llm-cfg input,
+      .llm-cfg select {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: var(--r-xs);
+        color: var(--text);
+        font-size: 12px;
+        padding: 6px 8px;
+        min-width: 0;
+      }
+      .llm-cfg input:focus,
+      .llm-cfg select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .llm-cfg .cfg-btns {
+        display: flex;
+        gap: 8px;
+      }
+      .llm-cfg .cfg-btns .btn {
+        padding: 6px 12px;
+        font-size: 12px;
+      }
+      .llm-cfg .cfg-note {
+        font-size: 11px;
+        color: var(--dim);
+        line-height: 1.6;
+      }
+      .llm-cfg .cfg-note.warn {
+        color: #ff9d9d;
+      }
+
+      /* ============ 键盘焦点可见性 & 弱化动效偏好 ============ */
+      button:focus-visible,
+      .icon-btn:focus-visible,
+      .act-btn:focus-visible,
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: var(--r-xs);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
     </style>
   </head>
   <body>
@@ -1117,20 +1611,20 @@
       <a class="home" href="../../index.html">← 主页</a>
       <div class="title">
         游戏王 · <b>决斗</b>
-        <span style="color: var(--accent); font-size: 11px">3D</span>
+        <span class="b3d">3D</span>
       </div>
       <span class="phase-tag" id="phase-tag">准备</span>
       <span class="turn-info" id="turn-info">第 1 回合</span>
       <div class="spacer"></div>
-      <div class="icon-btn" id="btn-pace" title="游戏节奏">▶</div>
-      <div class="icon-btn" id="btn-sfx" title="音效开关">🔊</div>
-      <div class="icon-btn" id="btn-log" title="对局日志">📜</div>
-      <div class="icon-btn" id="btn-help" title="说明">❓</div>
+      <button type="button" class="icon-btn" id="btn-pace" title="游戏节奏" aria-label="游戏节奏"></button>
+      <button type="button" class="icon-btn" id="btn-sfx" title="音效开关" aria-label="音效开关"></button>
+      <button type="button" class="icon-btn" id="btn-log" title="对局日志" aria-label="对局日志"></button>
+      <button type="button" class="icon-btn" id="btn-help" title="说明" aria-label="说明"></button>
       <button class="btn" id="btn-new">新对局</button>
     </header>
 
     <div class="board" id="board">
-      <div class="lp-row">
+      <div class="lp-row ai-side" id="lp-row-ai">
         <span class="lp-name ai">AI</span>
         <div class="lp-bar" id="lp-ai-bar">
           <div class="lp-fill ai" id="lp-ai-fill"></div>
@@ -1138,9 +1632,9 @@
         <span class="lp-val" id="lp-ai">8000</span>
       </div>
       <div class="stage" id="stage">
-        <div class="hint3d">🖱 点击卡牌查看/操作 · 拖拽旋转视角（水平）</div>
+        <div class="hint3d">点击卡牌查看/操作 · 拖拽旋转视角（水平）</div>
       </div>
-      <div class="lp-row">
+      <div class="lp-row" id="lp-row-me">
         <span class="lp-name me">玩家</span>
         <div class="lp-bar" id="lp-me-bar">
           <div class="lp-fill me" id="lp-me-fill"></div>
@@ -1161,6 +1655,8 @@
     <div class="mode-bar" id="mode-bar"></div>
     <div class="atk-overlay" id="atk-overlay"></div>
     <div class="chain-banner" id="chain-banner"></div>
+    <div class="llm-think" id="llm-think"><span class="tdot"></span>🤖 大模型思考中…</div>
+    <div class="event-notify" id="event-notify"><span class="en-ic"></span><span class="en-tx"></span></div>
     <div class="log-panel" id="log-panel">
       <header>
         <div style="font-size: 14px; font-weight: 700">对局日志</div>
@@ -1187,8 +1683,54 @@
       import * as THREE from "three";
       import { animate, cubicBezier } from "animejs";
 
-      ("use strict");
       const $ = (id) => document.getElementById(id);
+      /* ===================== 内联 SVG 图标（统一笔画，替代 emoji 图标） ===================== */
+      const svgWrap = (inner) =>
+        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+      const IC = {
+        pace: svgWrap(
+          '<path d="M4.5 14a7.5 7.5 0 1 1 15 0"/><path d="M12 14l3.2-3.2"/><circle cx="12" cy="14" r="1.1" fill="currentColor" stroke="none"/><path d="M4.5 14H3M21 14h-1.5"/>',
+        ),
+        sfxOn: svgWrap(
+          '<path d="M11 5.5 6.5 9H3.8v6h2.7L11 18.5z" fill="currentColor" stroke-linejoin="round"/><path d="M14.5 9.5a3.6 3.6 0 0 1 0 5"/><path d="M16.8 7.2a7 7 0 0 1 0 9.6"/>',
+        ),
+        sfxOff: svgWrap(
+          '<path d="M11 5.5 6.5 9H3.8v6h2.7L11 18.5z" fill="currentColor" stroke-linejoin="round"/><path d="M15.5 10l4.5 4.5M20 10l-4.5 4.5"/>',
+        ),
+        log: svgWrap(
+          '<circle cx="4.5" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="17.5" r="1" fill="currentColor" stroke="none"/><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/>',
+        ),
+        help: svgWrap(
+          '<circle cx="12" cy="12" r="8.6"/><path d="M9.7 9.4a2.5 2.5 0 1 1 3.4 2.3c-.85.35-1.1.9-1.1 1.8"/><circle cx="12" cy="16.6" r="1" fill="currentColor" stroke="none"/>',
+        ),
+        close: svgWrap('<path d="M6 6l12 12M18 6L6 18"/>'),
+        sword: svgWrap(
+          '<path d="M4 20l3-1 11.5-11.5a2.1 2.1 0 0 0-3-3L4 16z"/><path d="M13.5 6.5l4 4"/><path d="M5.5 15.5l3 3"/>',
+        ),
+        shield: svgWrap(
+          '<path d="M12 3.5l7 2.6v5.4c0 4.6-3 7.9-7 9.4-4-1.5-7-4.8-7-9.4V6.1z"/><path d="M12 7v9"/>',
+        ),
+        setCard: svgWrap(
+          '<rect x="6" y="4" width="12" height="16" rx="2"/><path d="M12 9v6M9.5 12.8 12 15.3l2.5-2.5"/>',
+        ),
+        spark: svgWrap(
+          '<path d="M12 4l1.7 4.6L18 10l-4.3 1.4L12 16l-1.7-4.6L6 10l4.3-1.4z" fill="currentColor" stroke-linejoin="round"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" fill="currentColor" stroke-linejoin="round"/>',
+        ),
+        flip: svgWrap(
+          '<path d="M4.5 9a8 8 0 0 1 14-2.5"/><path d="M19.5 15a8 8 0 0 1-14 2.5"/><path d="M18.6 3.5v3h-3M5.4 20.5v-3h3"/>',
+        ),
+        flag: svgWrap(
+          '<path d="M6 21V4.5"/><path d="M6 5c2.6-1.6 5.2 1.4 8 0 1.6-.8 2.8-.7 4 0v8c-1.2-.7-2.4-.8-4 0-2.8 1.4-5.4-1.6-8 0"/>',
+        ),
+        ban: svgWrap('<circle cx="12" cy="12" r="8.6"/><path d="M6 6l12 12"/>'),
+        check: svgWrap('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+        draw: svgWrap(
+          '<rect x="6" y="4" width="12" height="16" rx="2"/><path d="M12 15v-5M9.8 12.2 12 10l2.2 2.2"/>',
+        ),
+        gear: svgWrap(
+          '<circle cx="12" cy="12" r="2.6"/><path d="M12 4.2v2.3M12 17.5v2.3M4.2 12h2.3M17.5 12h2.3M6.5 6.5l1.6 1.6M15.9 15.9l1.6 1.6M17.5 6.5l-1.6 1.6M8.1 15.9l-1.6 1.6"/>',
+        ),
+      };
       const ATTR_EM = {
         光: "☀",
         暗: "☾",
@@ -1228,11 +1770,37 @@
       let deckChoice = "classic";
       let aiDeckChoice = "classic";
       let lastChainLen = 0;
+      /* 大模型对手：模式持久化 + 单例 LlmPlayer（5 方法契约，失败自动回退内置 AI） */
+      let opponentMode = (() => {
+        try {
+          return localStorage.getItem("ygo.opp") === "llm" ? "llm" : "ai";
+        } catch (e) {
+          return "ai";
+        }
+      })();
+      function saveOppMode(m) {
+        opponentMode = m;
+        try {
+          localStorage.setItem("ygo.opp", m);
+        } catch (e) {}
+      }
+      let llmPlayer = null;
+      function ensureLlmPlayer() {
+        if (!llmPlayer) {
+          llmPlayer = new window.LlmPlayer();
+          llmPlayer.onThinking = (on) =>
+            $("llm-think").classList.toggle("show", !!on);
+          llmPlayer.onWhy = (w) => pushLog("🤖 " + w, true);
+          llmPlayer.onFallback = (m) => toast(m);
+        }
+        return llmPlayer;
+      }
       const PACE_PRESETS = {
         fast: { label: "⚡ 快速", pace: 120, promptDelay: 100 },
         normal: { label: "▶ 标准", pace: 350, promptDelay: 220 },
         slow: { label: "🐢 悠闲", pace: 650, promptDelay: 400 },
       };
+      const PACE_SCALE = { fast: 0.55, normal: 1, slow: 1.3 }; // 事件通知停留时长随节奏档缩放
       let paceMode = (() => {
         try {
           return localStorage.getItem("ygoPace2") || "slow";
@@ -1254,68 +1822,274 @@
       camera.position.set(0, 5.0, 9.0);
       camera.lookAt(0, -0.3, -0.8);
 
-      const renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        preserveDrawingBuffer: true,
-      });
+      /* 渲染器：ACES 色调映射给高光/暗部带来电影感层次 */
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       stage.appendChild(renderer.domElement);
 
-      scene.add(new THREE.HemisphereLight(0x8899cc, 0x1a2030, 0.9));
-      const dir = new THREE.DirectionalLight(0xffffff, 1.1);
-      dir.position.set(4, 8, 5);
-      scene.add(dir);
-
-      // 桌面
-      const tableMat = new THREE.MeshStandardMaterial({
-        color: 0x151b2a,
-        roughness: 0.85,
-        metalness: 0.15,
+      /* 布光：暖色主光（唯一投影源）+ 冷蓝逆光勾轮廓 + 金色场地氛围光 + 半球底光 */
+      scene.add(new THREE.HemisphereLight(0x93a4cf, 0x161c2c, 0.85));
+      const keyLight = new THREE.DirectionalLight(0xfff1da, 1.6);
+      keyLight.position.set(5, 9, 4);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(2048, 2048);
+      Object.assign(keyLight.shadow.camera, {
+        left: -8,
+        right: 8,
+        top: 7,
+        bottom: -7,
+        near: 2,
+        far: 30,
       });
-      const table = new THREE.Mesh(new THREE.PlaneGeometry(19, 14), tableMat);
-      table.rotation.x = -Math.PI / 2;
-      scene.add(table);
-      // 桌面装饰线
-      const grid = new THREE.GridHelper(19, 19, 0x2b3550, 0x1d2436);
-      grid.position.y = 0.01;
-      scene.add(grid);
-      // 中央场地分隔光带
-      const lane = new THREE.Mesh(
-        new THREE.PlaneGeometry(12.4, 0.12),
-        new THREE.MeshBasicMaterial({
+      keyLight.shadow.camera.updateProjectionMatrix();
+      keyLight.shadow.bias = -0.0004;
+      keyLight.shadow.normalBias = 0.02;
+      scene.add(keyLight);
+      const rimLight = new THREE.DirectionalLight(0x5d7cff, 0.5);
+      rimLight.position.set(-6, 4.5, -7);
+      scene.add(rimLight);
+      const arenaGlow = new THREE.PointLight(0xe6b24a, 14, 11, 2);
+      arenaGlow.position.set(0, 2.6, 0);
+      scene.add(arenaGlow);
+
+      /* ===================== 背景：夜幕穹顶 + 星尘（脱离雾影响） ===================== */
+      let stars; // 渲染循环中缓慢漂移
+      {
+        const cv = document.createElement("canvas");
+        cv.width = 64;
+        cv.height = 512;
+        const ctx = cv.getContext("2d");
+        const g = ctx.createLinearGradient(0, 0, 0, 512);
+        g.addColorStop(0, "#28305c");
+        g.addColorStop(0.4, "#181f3a");
+        g.addColorStop(0.68, "#0f1322");
+        g.addColorStop(1, "#090b12");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 64, 512);
+        const domeTex = new THREE.CanvasTexture(cv);
+        domeTex.colorSpace = THREE.SRGBColorSpace;
+        const dome = new THREE.Mesh(
+          new THREE.SphereGeometry(46, 32, 20),
+          new THREE.MeshBasicMaterial({
+            map: domeTex,
+            side: THREE.BackSide,
+            fog: false,
+          }),
+        );
+        scene.add(dome);
+        // 星尘：上半球壳层随机撒点，柔和圆点贴图，整体缓慢漂移
+        const dotCv = document.createElement("canvas");
+        dotCv.width = dotCv.height = 64;
+        const dctx = dotCv.getContext("2d");
+        const dg = dctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+        dg.addColorStop(0, "rgba(255,250,235,1)");
+        dg.addColorStop(0.4, "rgba(230,230,255,0.5)");
+        dg.addColorStop(1, "rgba(200,210,255,0)");
+        dctx.fillStyle = dg;
+        dctx.fillRect(0, 0, 64, 64);
+        const starTex = new THREE.CanvasTexture(dotCv);
+        starTex.colorSpace = THREE.SRGBColorSpace;
+        const N = 420;
+        const pos = new Float32Array(N * 3);
+        for (let i = 0; i < N; i++) {
+          const r = 33 + Math.random() * 9;
+          const th = Math.random() * Math.PI * 2;
+          const el =
+            Math.pow(Math.random(), 1.4) * Math.PI * 0.47 + Math.PI * 0.03;
+          pos[i * 3] = r * Math.cos(el) * Math.cos(th);
+          pos[i * 3 + 1] = r * Math.sin(el) - 1.5;
+          pos[i * 3 + 2] = r * Math.cos(el) * Math.sin(th);
+        }
+        const sg = new THREE.BufferGeometry();
+        sg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        stars = new THREE.Points(
+          sg,
+          new THREE.PointsMaterial({
+            map: starTex,
+            size: 0.55,
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            fog: false,
+          }),
+        );
+        scene.add(stars);
+      }
+
+      /* ===================== 桌面：程序纹理 + 接收阴影，金边框带 ===================== */
+      {
+        const cv = document.createElement("canvas");
+        cv.width = 1024;
+        cv.height = 768;
+        const ctx = cv.getContext("2d");
+        ctx.fillStyle = "#10151f";
+        ctx.fillRect(0, 0, 1024, 768);
+        for (let i = 0; i < 2400; i++) {
+          ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.022})`;
+          ctx.fillRect(Math.random() * 1024, Math.random() * 768, 1, 1);
+        }
+        const warm = ctx.createRadialGradient(
+          512,
+          384,
+          60,
+          512,
+          384,
+          520,
+        );
+        warm.addColorStop(0, "rgba(230,178,74,0.07)");
+        warm.addColorStop(1, "rgba(230,178,74,0)");
+        ctx.fillStyle = warm;
+        ctx.fillRect(0, 0, 1024, 768);
+        const vig = ctx.createRadialGradient(
+          512,
+          384,
+          300,
+          512,
+          384,
+          700,
+        );
+        vig.addColorStop(0, "rgba(0,0,0,0)");
+        vig.addColorStop(1, "rgba(0,0,0,0.42)");
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, 1024, 768);
+        const tableTex = new THREE.CanvasTexture(cv);
+        tableTex.colorSpace = THREE.SRGBColorSpace;
+        tableTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        const tableMat = new THREE.MeshStandardMaterial({
+          map: tableTex,
+          roughness: 0.92,
+          metalness: 0.06,
+        });
+        const table = new THREE.Mesh(
+          new THREE.PlaneGeometry(19, 14),
+          tableMat,
+        );
+        table.rotation.x = -Math.PI / 2;
+        table.receiveShadow = true;
+        scene.add(table);
+        // 桌沿金色描边（四条细带围合）
+        const edgeMat = new THREE.MeshBasicMaterial({
           color: 0xe6b24a,
           transparent: true,
-          opacity: 0.35,
-        }),
-      );
-      lane.rotation.x = -Math.PI / 2;
-      lane.position.y = 0.02;
-      scene.add(lane);
-      // 场地分区底色：玩家半场（近，蓝调）/ AI 半场（远，红调），覆盖怪兽区+魔陷区两行
-      const meZone = new THREE.Mesh(
-        new THREE.PlaneGeometry(11.0, 2.7),
-        new THREE.MeshBasicMaterial({
-          color: 0x2b4a8c,
-          transparent: true,
-          opacity: 0.22,
-          depthWrite: false,
-        }),
-      );
-      meZone.rotation.x = -Math.PI / 2;
-      meZone.position.set(0, 0.012, 2.75);
-      scene.add(meZone);
-      const aiZone = new THREE.Mesh(
-        new THREE.PlaneGeometry(11.0, 2.7),
-        new THREE.MeshBasicMaterial({
-          color: 0x8c2f2f,
-          transparent: true,
-          opacity: 0.22,
-          depthWrite: false,
-        }),
-      );
-      aiZone.rotation.x = -Math.PI / 2;
-      aiZone.position.set(0, 0.012, -2.75);
-      scene.add(aiZone);
+          opacity: 0.32,
+        });
+        const mk = (w, d, x, z) => {
+          const m = new THREE.Mesh(
+            new THREE.BoxGeometry(w, 0.04, d),
+            edgeMat,
+          );
+          m.position.set(x, 0.02, z);
+          return m;
+        };
+        scene.add(mk(19.06, 0.09, 0, 6.99));
+        scene.add(mk(19.06, 0.09, 0, -6.99));
+        scene.add(mk(0.09, 14.05, 9.49, 0));
+        scene.add(mk(0.09, 14.05, -9.49, 0));
+      }
+
+      /* ===================== 决斗盘贴花：一格一线按实际槽位坐标绘制 =====================
+         单张覆盖全桌的透明贴花画布（100px = 1 世界单位），一次绘出：
+         双方半场描边渐变、怪兽/魔陷/场地槽位金框、中央分隔光带、八个堆位环。 */
+      {
+        const PX = 100; // px / world unit
+        const W = 1900,
+          H = 1400;
+        const px = (x) => ((x + 9.5) * PX) | 0;
+        const pz = (z) => ((z + 7) * PX) | 0;
+        const cv = document.createElement("canvas");
+        cv.width = W;
+        cv.height = H;
+        const ctx = cv.getContext("2d");
+        const strokeGlow = (color, blur) => {
+          ctx.strokeStyle = color;
+          ctx.shadowColor = color;
+          ctx.shadowBlur = blur;
+        };
+        // 半场区域：描边发光框 + 从边缘向中心的渐隐填充（蓝=玩家，红=AI）
+        for (const [who, col] of [
+          ["me", "74,150,255"],
+          ["ai", "230,84,84"],
+        ]) {
+          const s = who === "me" ? 1 : -1;
+          const x0 = px(-5.6),
+            x1 = px(5.6);
+          const zA = pz(s * 1.35),
+            zB = pz(s * 4.15);
+          const rx = Math.min(x0, x1),
+            rw = Math.abs(x1 - x0);
+          const rz = Math.min(zA, zB),
+            rh = Math.abs(zB - zA);
+          ctx.fillStyle = `rgba(${col},0.075)`;
+          roundRect(ctx, rx, rz, rw, rh, 26);
+          ctx.fill();
+          const lg = ctx.createLinearGradient(
+            0,
+            s === 1 ? zB : rz,
+            0,
+            s === 1 ? rz : zB,
+          );
+          lg.addColorStop(0, `rgba(${col},0.14)`);
+          lg.addColorStop(1, `rgba(${col},0)`);
+          ctx.fillStyle = lg;
+          roundRect(ctx, rx, rz, rw, rh, 26);
+          ctx.fill();
+          strokeGlow(`rgba(${col},0.5)`, 16);
+          ctx.lineWidth = 3;
+          roundRect(ctx, rx, rz, rw, rh, 26);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+        // 中央分隔光带（替代原 lane 平面）
+        strokeGlow("rgba(230,178,74,0.75)", 22);
+        ctx.lineWidth = 6;
+        roundRect(ctx, px(-6.3), pz(0) - 4, px(6.3) - px(-6.3), 8, 4);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        // 槽位金框：怪兽行较亮，魔陷/场地稍收敛；防守横向与牌面同宽已在视觉上对齐
+        const fw = 1.26 * PX,
+          fh = 1.78 * PX;
+        const slotFrame = (x, z, bright) => {
+          strokeGlow(bright ? "rgba(233,190,105,0.5)" : "rgba(233,190,105,0.3)", 10);
+          ctx.lineWidth = 2.5;
+          roundRect(ctx, px(x) - fw / 2, pz(z) - fh / 2, fw, fh, 10);
+          ctx.stroke();
+        };
+        ctx.shadowBlur = 0;
+        for (const s of [1, -1]) {
+          for (let i = 0; i < 5; i++) {
+            slotFrame((i - 2) * 1.9, s * 2.15, true);
+            slotFrame((i - 2) * 1.9, s * 3.4, false);
+          }
+          slotFrame(-5.6, s * 3.4, false);
+          // 八个堆位环：卡组/墓地/额外/除外占位标记
+          for (const base of [-5.6, -4.2, -2.8, -1.4]) {
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(200,170,110,0.2)";
+            ctx.lineWidth = 2;
+            ctx.arc(px(8.2), pz((3.4 + base) * s), 0.52 * PX, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+        const decalTex = new THREE.CanvasTexture(cv);
+        decalTex.colorSpace = THREE.SRGBColorSpace;
+        decalTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        const decal = new THREE.Mesh(
+          new THREE.PlaneGeometry(19, 14),
+          new THREE.MeshBasicMaterial({
+            map: decalTex,
+            transparent: true,
+            depthWrite: false,
+          }),
+        );
+        decal.rotation.x = -Math.PI / 2;
+        decal.position.y = 0.02;
+        scene.add(decal);
+      }
 
       /* ===================== 卡牌纹理 ===================== */
       const TEX_W = 512,
@@ -1490,7 +2264,11 @@
       // 卡背图就绪后：清空背面纹理缓存并重新绑定所有卡背
       function refreshBackTexture() {
         for (const key of [...texCache.keys()])
-          if (key.startsWith("d:")) texCache.delete(key);
+          if (key.startsWith("d:")) {
+            const t = texCache.get(key);
+            if (t) t.dispose();
+            texCache.delete(key);
+          }
         for (const g of cardMeshes.values()) {
           const landscape = isLandscape(g.userData.slot, g.userData.card);
           g.userData.backMat.map = getTexture(null, false, landscape);
@@ -1503,6 +2281,12 @@
             );
             g.userData.frontMat.needsUpdate = true;
           }
+        }
+        // 牌堆顶面若在卡背图加载前创建，会停留在程序回退卡背上，这里一并换新
+        for (const g of pileMeshes.values()) {
+          if (g.userData.topUid) continue; // 面朝上的堆顶用卡面纹理，无需处理
+          g.userData.topMat.map = getTexture(null, false);
+          g.userData.topMat.needsUpdate = true;
         }
       }
       function makeCardTexture(card, faceUp) {
@@ -1674,9 +2458,17 @@
         }
         return { atk: card.atk ?? 0, def: card.def ?? 0 };
       }
+      // 从缓存丢弃纹理并释放 GPU 资源（替换前调用，防止显存泄漏）
+      function dropTex(key) {
+        const t = texCache.get(key);
+        if (t) {
+          t.dispose();
+          texCache.delete(key);
+        }
+      }
       function refreshCardTexture(uid) {
-        texCache.delete("u:" + uid);
-        texCache.delete("u:" + uid + ":L");
+        dropTex("u:" + uid);
+        dropTex("u:" + uid + ":L");
         for (const m of cardMeshes.values()) {
           if (
             m.userData.card &&
@@ -1707,16 +2499,30 @@
         color: 0xe8e4da,
         roughness: 0.6,
       });
+      // 释放单卡独占的 GPU 资源（几何体与正反面材质；纹理由 texCache/artCache 统一管理，跳过共享侧边材质）
+      function disposeCardGroup(g) {
+        g.traverse((o) => {
+          if (o.geometry) o.geometry.dispose();
+          const mats = Array.isArray(o.material)
+            ? o.material
+            : o.material
+              ? [o.material]
+              : [];
+          for (const m of mats) if (m !== sideMat) m.dispose();
+        });
+      }
       function makeCard3D() {
         const g = new THREE.Group();
         // 卡面用 Basic 材质：直接显示纹理颜色，不受光照影响（鲜艳清晰）
+        // 注意：绑定 map 的材质不能带深色底色，否则纹理会被颜色乘算压暗
         // BoxGeometry 材质顺序：[+x, -x, +y, -y, +z, -z]，正面(+z)放立绘、背面(-z)放卡背
-        const backMat = new THREE.MeshBasicMaterial({ color: 0x3a2350 });
+        const backMat = new THREE.MeshBasicMaterial();
         const frontMat = new THREE.MeshBasicMaterial();
         const box = new THREE.Mesh(
           new THREE.BoxGeometry(CARD_W, CARD_H, CARD_T),
           [sideMat, sideMat, sideMat, sideMat, frontMat, backMat],
         );
+        box.castShadow = true; // 卡牌在暖色主光下向桌面投影
         g.add(box);
         g.userData = {
           frontMat,
@@ -1796,6 +2602,41 @@
           { deck: -5.6, grave: -4.2, extra: -2.8, banished: -1.4 }[kind] || 0;
         const z = (who === "me" ? 1 : -1) * (3.4 + base);
         return new THREE.Vector3(8.2, 0.14, z);
+      }
+      /* 悬停光环：与决斗盘贴花同语言的柔光金框，跟随指针下的场上卡牌 */
+      const hoverRing = (() => {
+        const cv = document.createElement("canvas");
+        cv.width = 128;
+        cv.height = 160;
+        const ctx = cv.getContext("2d");
+        strokeGlowStyle(ctx, "rgba(255,216,132,0.95)", 16);
+        ctx.lineWidth = 6;
+        roundRect(ctx, 10, 10, 108, 140, 14);
+        ctx.stroke();
+        const tex = new THREE.CanvasTexture(cv);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        const m = new THREE.Mesh(
+          new THREE.PlaneGeometry(
+            CARD_W * FIELD_SCALE + 0.22,
+            CARD_H * FIELD_SCALE + 0.22,
+          ),
+          new THREE.MeshBasicMaterial({
+            map: tex,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }),
+        );
+        m.rotation.x = -Math.PI / 2;
+        m.visible = false;
+        m.renderOrder = 2;
+        scene.add(m);
+        return m;
+      })();
+      function strokeGlowStyle(ctx, color, blur) {
+        ctx.strokeStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = blur;
       }
 
       /* ===================== 状态同步 ===================== */
@@ -1928,7 +2769,11 @@
           if (prev && prev.atk === st.atk && prev.def === st.def) continue;
           g.userData.lastStats = { atk: st.atk, def: st.def };
           const img = artImg.get(card.uid);
-          if (img) artCache.set(card.uid, buildArtTexture(img, card)); // 用原图按新数值重绘立绘卡面
+          if (img) {
+            const oldArt = artCache.get(card.uid);
+            if (oldArt) oldArt.dispose();
+            artCache.set(card.uid, buildArtTexture(img, card)); // 用原图按新数值重绘立绘卡面
+          }
           refreshCardTexture(card.uid);
         }
       }
@@ -2052,8 +2897,11 @@
           420,
           "easeIn",
           () => {
+            // 死亡动画期间同 uid 卡牌回到场上（dying 已被 placeCard3D 复位）则放弃移除
+            if (!g.userData.dying) return;
             scene.remove(g);
-            cardMeshes.delete(g.userData.card.uid);
+            cardMeshes.delete(g.userData.card && g.userData.card.uid);
+            disposeCardGroup(g);
           },
         );
       }
@@ -2062,18 +2910,23 @@
         let g = pileMeshes.get(key);
         if (!g) {
           g = new THREE.Group();
+          // 顶面与前后两面都贴牌图：侧视/俯视都能看到卡背图案
+          const topTex = new THREE.MeshBasicMaterial({
+            map: topCard
+              ? getTexture(topCard, true)
+              : getTexture(null, false),
+          });
           const box = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.86, 0.05), [
             sideMat,
             sideMat,
-            new THREE.MeshBasicMaterial({
-              map: topCard
-                ? getTexture(topCard, true)
-                : getTexture(null, false),
-            }),
-            new THREE.MeshBasicMaterial({ color: 0x3a2350 }),
-            sideMat,
-            sideMat,
+            topTex,
+            new THREE.MeshBasicMaterial({ color: 0x241a33 }),
+            topTex,
+            topTex,
           ]);
+          box.castShadow = true;
+          g.userData.topMat = box.material[2];
+          g.userData.topUid = topCard ? topCard.uid : null;
           g.add(box);
           scene.add(g);
           pileMeshes.set(key, g);
@@ -2094,6 +2947,23 @@
         g.position.copy(pilePos(who, kind));
         // 堆叠厚度
         g.scale.y = Math.min(1 + count * 0.02, 2.2);
+        // 顶卡变化（如墓地顶）时换面并刷新标签
+        const uid = topCard ? topCard.uid : null;
+        if (uid !== g.userData.topUid) {
+          g.userData.topUid = uid;
+          g.userData.topMat.map = topCard
+            ? getTexture(topCard, true)
+            : getTexture(null, false);
+          g.userData.topMat.needsUpdate = true;
+          const tag = pileTags.get(key);
+          if (tag)
+            tag.textContent =
+              ({ deck: "卡组", grave: "墓地", extra: "额外", banished: "除外" }[
+                kind
+              ] || kind) +
+              " " +
+              count;
+        }
       }
 
       /* ===================== 动画系统（anime.js 统一驱动 3D + DOM） ===================== */
@@ -2357,44 +3227,61 @@
         while (g && !g.userData.slot && !g.userData.key) g = g.parent;
         return g || null;
       }
-      renderer.domElement.addEventListener("pointermove", (e) => {
-        const g = pick(e);
-        if (hoveredMesh && hoveredMesh !== g) {
-          hoveredMesh.userData.hover = false;
-          hoveredMesh = null;
-        }
-        if (g && g.userData.slot) {
-          hoveredMesh = g;
-          g.userData.hover = true;
-          renderer.domElement.style.cursor = "pointer";
-        } else renderer.domElement.style.cursor = "default";
-      });
-      renderer.domElement.addEventListener("mousemove", (e) => {
-        const g = pick(e);
-        if (hoveredMesh && hoveredMesh !== g) {
-          hoveredMesh.userData.hover = false;
-          hoveredMesh = null;
-        }
-        if (g && g.userData.slot) {
-          hoveredMesh = g;
-          g.userData.hover = true;
-          renderer.domElement.style.cursor = "pointer";
-        } else renderer.domElement.style.cursor = "default";
+      /* 指针事件统一处理：悬停拾取 + 提示文案（仅变化时写 DOM）+ 水平拖拽视角。
+         （原 pointer/mouse 双份监听会让同一次移动做两次射线检测，现只保留 Pointer 一路） */
+      let dragStart = null;
+      let lastHint = null;
+      function setHint(t) {
+        if (t === lastHint) return;
+        lastHint = t;
         const hint = document.querySelector(".hint3d");
-        if (hint)
-          hint.textContent = g
+        if (hint) hint.textContent = t || "";
+      }
+      renderer.domElement.addEventListener("pointerdown", (e) => {
+        downPos = { x: e.clientX, y: e.clientY };
+        dragStart = { x: e.clientX };
+      });
+      renderer.domElement.addEventListener("pointermove", (e) => {
+        // 视角水平拖拽
+        if (dragStart && e.buttons === 1) {
+          const dx = e.clientX - dragStart.x;
+          if (Math.abs(dx) > 8) {
+            camera.position.x = THREE.MathUtils.clamp(
+              camera.position.x - dx * 0.008,
+              -2.5,
+              2.5,
+            );
+            camera.lookAt(0, -0.4, 0);
+            dragStart = { x: e.clientX };
+          }
+        }
+        // 悬停拾取（拖拽中沿用旧目标，省一次 raycast）
+        const dragging = dragStart && e.buttons === 1;
+        const g = dragging ? hoveredMesh : pick(e);
+        if (!dragging) {
+          if (hoveredMesh && hoveredMesh !== g) {
+            hoveredMesh.userData.hover = false;
+            hoveredMesh = null;
+          }
+          if (g && g.userData.slot) {
+            hoveredMesh = g;
+            g.userData.hover = true;
+          }
+        }
+        renderer.domElement.style.cursor =
+          g && (g.userData.slot || g.userData.key) ? "pointer" : "default";
+        setHint(
+          g
             ? g.userData.key
               ? "堆:" + g.userData.key
               : g.userData.card
                 ? "卡:" + g.userData.card.name
                 : "?"
-            : "点击卡牌查看/操作";
+            : "点击卡牌查看/操作",
+        );
       });
-      renderer.domElement.addEventListener("pointerdown", (e) => {
-        downPos = { x: e.clientX, y: e.clientY };
-      });
-      renderer.domElement.addEventListener("mousedown", (e) => {
-        downPos = { x: e.clientX, y: e.clientY };
+      renderer.domElement.addEventListener("pointerup", () => {
+        dragStart = null;
       });
       // 统一用 click 事件处理拾取（pointer/mouse 派发均兼容）
       renderer.domElement.addEventListener("click", (e) => {
@@ -2412,9 +3299,9 @@
           const [kind, who] = g.userData.key.split(":");
           const p = duel.state[who];
           if (kind === "deck") toast("卡组不可查看");
-          else if (kind === "extra") openListModal("额外卡组", p.extra, who);
-          else if (kind === "banished") openListModal("除外", p.banished, who);
-          else openListModal("墓地", p.graveyard, who);
+          else if (kind === "extra") openListModal("额外卡组", p.extra);
+          else if (kind === "banished") openListModal("除外", p.banished);
+          else openListModal("墓地", p.graveyard);
           return;
         }
         const slot = g.userData.slot;
@@ -2434,30 +3321,10 @@
         }
         openMenu(card, slot, g);
       });
-      // 视角微调：水平拖拽旋转相机
-      let dragStart = null;
-      renderer.domElement.addEventListener("pointerdown", (e) => {
-        dragStart = { x: e.clientX };
-      });
-      renderer.domElement.addEventListener("pointermove", (e) => {
-        if (dragStart && e.buttons === 1) {
-          const dx = e.clientX - dragStart.x;
-          if (Math.abs(dx) > 8) {
-            camera.position.x = THREE.MathUtils.clamp(
-              camera.position.x - dx * 0.008,
-              -2.5,
-              2.5,
-            );
-            camera.lookAt(0, -0.4, 0);
-            dragStart = { x: e.clientX };
-          }
-        }
-      });
-      renderer.domElement.addEventListener("pointerup", () => {
-        dragStart = null;
-      });
 
       /* ===================== 渲染循环 ===================== */
+      let viewW = 1,
+        viewH = 1; // 缓存画布尺寸，投影循环不再每帧 getBoundingClientRect
       function resize() {
         const w = stage.clientWidth,
           h = stage.clientHeight;
@@ -2465,6 +3332,8 @@
         renderer.setSize(w, h);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
+        viewW = w;
+        viewH = h;
       }
       window.addEventListener("resize", resize);
       new ResizeObserver(resize).observe(stage);
@@ -2521,21 +3390,20 @@
           g.rotation.x += (tr.x - g.rotation.x) * damp;
           g.rotation.y += (tr.y - g.rotation.y) * damp;
         }
-        // 堆标签投影（取整定位，避免亚像素抖动）
+        // 堆标签投影（取整定位，避免亚像素抖动；文案仅变化时更新）
         for (const [key, g] of pileMeshes) {
           const tag = pileTags.get(key);
           if (!tag) continue;
           const v = g.position.clone().project(camera);
-          const rect = renderer.domElement.getBoundingClientRect();
-          tag.style.left = Math.round((v.x * 0.5 + 0.5) * rect.width) + "px";
-          tag.style.top =
-            Math.round((-v.y * 0.5 + 0.5) * rect.height + 26) + "px";
-          tag.textContent =
+          tag.style.left = Math.round((v.x * 0.5 + 0.5) * viewW) + "px";
+          tag.style.top = Math.round((-v.y * 0.5 + 0.5) * viewH + 26) + "px";
+          const txt =
             ({ deck: "卡组", grave: "墓地", extra: "额外", banished: "除外" }[
               key.split(":")[0]
             ] || "") +
             " " +
             g.userData.count;
+          if (tag.textContent !== txt) tag.textContent = txt;
           tag.style.display = g.userData.count > 0 ? "" : "none";
         }
         // 卡牌引导 chip 投影（跟随对应卡牌，取整定位）
@@ -2548,11 +3416,20 @@
             continue;
           }
           const v = g.position.clone().project(camera);
-          const rect = renderer.domElement.getBoundingClientRect();
-          el.style.left = Math.round((v.x * 0.5 + 0.5) * rect.width) + "px";
-          el.style.top =
-            Math.round((-v.y * 0.5 + 0.5) * rect.height - 40) + "px";
+          el.style.left = Math.round((v.x * 0.5 + 0.5) * viewW) + "px";
+          el.style.top = Math.round((-v.y * 0.5 + 0.5) * viewH - 40) + "px";
         }
+        // 星尘缓慢漂移与明暗呼吸
+        const tNow = performance.now() / 1000;
+        stars.rotation.y = tNow * 0.006;
+        stars.material.opacity = 0.72 + Math.sin(tNow * 0.7) * 0.13;
+        // 悬停光环：贴桌发光框，跟随指针下场上卡牌的落脚点
+        const hvSlot = hoveredMesh && hoveredMesh.userData.slot;
+        if (hoveredMesh && hvSlot && hvSlot.kind !== "hand") {
+          hoverRing.visible = true;
+          hoverRing.position.set(hoveredMesh.position.x, 0.05, hoveredMesh.position.z);
+          hoverRing.scale.setScalar(hoveredMesh.scale.x / FIELD_SCALE);
+        } else hoverRing.visible = false;
         renderer.render(scene, camera);
       }
       renderLoop();
@@ -2727,6 +3604,10 @@
         if (!s) return;
         updateLP("me", s.me.lp);
         updateLP("ai", s.ai.lp);
+        // 当前行动方 LP 行呼吸光晕
+        const meTurn = s.turnPlayer === "me" && !s.winner;
+        $("lp-row-me").classList.toggle("active", meTurn);
+        $("lp-row-ai").classList.toggle("active", !meTurn && !s.winner);
         const phaseNames = {
           draw: "抽卡",
           standby: "准备",
@@ -2755,7 +3636,13 @@
         if (s.winner && !winnerShown) showGameOver(s.winner);
       }
       function updateLP(who, val) {
-        $(`lp-${who}`).textContent = val;
+        const el = $(`lp-${who}`);
+        if (el.textContent !== String(val)) {
+          el.textContent = val;
+          el.classList.remove("bump");
+          void el.offsetWidth; // 重启动画
+          el.classList.add("bump");
+        }
         const fill = $(`lp-${who}-fill`);
         fill.style.width = Math.max(0, (val / 8000) * 100) + "%";
         if (val < prevLp[who]) {
@@ -2807,21 +3694,21 @@
           altBtn = $("tb-alt"),
           endBtn = $("tb-end");
         const set = (b, label, show, primary, enabled) => {
-          b.textContent = label;
+          if (b.innerHTML !== label) b.innerHTML = label;
           b.style.visibility = show ? "" : "hidden"; // 占位隐藏而非 display:none，避免回合条宽度跳动
           b.className = "tb-btn" + (primary ? " primary" : " ghost");
           b.disabled = !(mine && enabled);
         };
         if (s.phase === "main1") {
-          set(mainBtn, "⚔ 进入战斗", true, true, true);
+          set(mainBtn, IC.sword + " 进入战斗", true, true, true);
           set(altBtn, "", false, false, false);
-          set(endBtn, "▶ 结束回合", true, false, true);
+          set(endBtn, IC.flag + " 结束回合", true, false, true);
         } else if (s.phase === "battle") {
-          set(mainBtn, "🛠 主阶段 2", true, true, true);
+          set(mainBtn, IC.gear + " 主阶段 2", true, true, true);
           set(altBtn, "", false, false, false);
-          set(endBtn, "▶ 结束回合", true, false, true);
+          set(endBtn, IC.flag + " 结束回合", true, false, true);
         } else if (s.phase === "main2") {
-          set(mainBtn, "▶ 结束回合", true, true, true);
+          set(mainBtn, IC.flag + " 结束回合", true, true, true);
           set(altBtn, "", false, false, false);
           set(endBtn, "", false, false, true);
         } else {
@@ -2955,7 +3842,7 @@
           if (card.type === "monster") {
             if (card.level < 5) {
               acts.push({
-                icon: "⚔",
+                icon: IC.sword,
                 label: "通常召唤·攻击表示",
                 primary: true,
                 fn: () => {
@@ -2964,7 +3851,7 @@
                 },
               });
               acts.push({
-                icon: "🛡",
+                icon: IC.shield,
                 label: "通常召唤·守备表示",
                 fn: () => {
                   duel.normalSummon(handIdx, null, "def");
@@ -2972,7 +3859,7 @@
                 },
               });
               acts.push({
-                icon: "🎴",
+                icon: IC.setCard,
                 label: "覆盖（里侧守备）",
                 fn: () => {
                   duel.setMonster(handIdx, null);
@@ -2981,7 +3868,7 @@
               });
             } else {
               acts.push({
-                icon: "⚔",
+                icon: IC.sword,
                 label: `祭品召唤（需${card.level >= 7 ? 2 : 1}祭品）`,
                 primary: true,
                 fn: () => {
@@ -2991,7 +3878,7 @@
             }
             if (duel.manualCondOk(card))
               acts.push({
-                icon: "✨",
+                icon: IC.spark,
                 label: "发动效果",
                 fn: () => {
                   duel.activateHandMonsterEffect(handIdx);
@@ -3002,7 +3889,7 @@
             const canFire = duel.manualCondOk(card);
             if (canFire)
               acts.push({
-                icon: "✨",
+                icon: IC.spark,
                 label: "发动",
                 primary: true,
                 fn: () => {
@@ -3011,7 +3898,7 @@
                 },
               });
             acts.push({
-              icon: "🎴",
+              icon: IC.setCard,
               label: "覆盖",
               primary: !canFire,
               fn: () => {
@@ -3021,7 +3908,7 @@
             });
           } else if (card.type === "trap") {
             acts.push({
-              icon: "🎴",
+              icon: IC.setCard,
               label: "覆盖",
               primary: true,
               fn: () => {
@@ -3036,7 +3923,7 @@
           if (card.faceDown) {
             if (inMain)
               acts.push({
-                icon: "🔄",
+                icon: IC.flip,
                 label: "翻转召唤",
                 primary: true,
                 fn: () => {
@@ -3052,7 +3939,7 @@
               s.turn > 1
             )
               acts.push({
-                icon: "⚔",
+                icon: IC.sword,
                 label: "攻击",
                 primary: true,
                 fn: () => {
@@ -3061,7 +3948,7 @@
               });
             if (inMain) {
               acts.push({
-                icon: "🔄",
+                icon: IC.flip,
                 label: "切换表示形式",
                 fn: () => {
                   duel.changePosition(idx);
@@ -3070,7 +3957,7 @@
               });
               if (duel.manualCondOk(card))
                 acts.push({
-                  icon: "✨",
+                  icon: IC.spark,
                   label: "发动效果",
                   fn: () => {
                     duel.activateMonsterEffect(idx);
@@ -3222,10 +4109,10 @@
               want.set(
                 m.uid,
                 blk.ok
-                  ? { cls: "atk", text: "⚔ 攻击", fn: () => enterAttackMode(i) }
+                  ? { cls: "atk", text: IC.sword + " 攻击", fn: () => enterAttackMode(i) }
                   : {
                       cls: "dim",
-                      text: "⛔ " + blk.reason,
+                      text: IC.ban + " " + blk.reason,
                       fn: () => toast(blk.reason),
                     },
               );
@@ -3237,7 +4124,7 @@
               if (!m || !tributePool.includes(i)) return;
               want.set(m.uid + ":sel", {
                 cls: "sel",
-                text: "✓ 已选",
+                text: IC.check + " 已选",
                 fn: null,
               });
             });
@@ -3259,7 +4146,7 @@
           }
           if (el.__cls !== w.cls || el.__text !== w.text) {
             el.className = "card-chip " + w.cls;
-            el.textContent = w.text;
+            el.innerHTML = w.text; // 含内联 SVG 图标
             el.onclick = w.fn || null;
             el.__cls = w.cls;
             el.__text = w.text;
@@ -3343,14 +4230,14 @@
       }
 
       /* ===================== 日志/Toast/列表 ===================== */
-      function pushLog(msg) {
+      function pushLog(msg, imp) {
         logBuf.push(msg);
         if (logBuf.length > 300) logBuf.shift();
         const body = $("log-body");
         const div = document.createElement("div");
         div.className =
           "entry" +
-          (/破坏|全灭|无效|伤害|获胜|平局|祭品|特殊召唤|除外/.test(msg)
+          (imp || /破坏|全灭|无效|伤害|获胜|平局|祭品|特殊召唤|除外/.test(msg)
             ? " imp"
             : "");
         div.textContent = msg;
@@ -3402,6 +4289,7 @@
           <p><b>战斗</b>：ATK对ATK比攻差伤害；ATK对守备比攻守，不足部分反伤。含贯穿、直接攻击、攻击响应陷阱。</p>
           <p><b>魔陷</b>：魔法可当回合从手牌发动；陷阱须先覆盖且当回合不可发动。装备给己方怪兽，场地全场生效。</p>
           <p><b>连锁</b>：咒文速度 通常魔法/起动1、陷阱2、反击陷阱3，LIFO结算。伤害步骤可丢弃栗子球免伤。</p>
+          <p><b>大模型对手</b>：新对局里把"对手"切到 🤖 大模型，可选供应商并填入密钥（仅存本地）。大模型会在枚举出的合法动作中思考决策，理由写入日志；失败/超时自动回退内置 AI。代理模式需先运行 node run/game.js。</p>
           <p><b>胜负</b>：LP归0 或 抽卡时卡组为0 即败。右上角 ▶ 调节奏、🔊 开关音效。</p>
         </div><div class="btns"><button class="btn ghost" id="help-close">关闭</button></div>`;
         $("help-close").onclick = () => {
@@ -3417,7 +4305,7 @@
         mask.classList.add("show");
         const win = winner === "me",
           draw = winner === "draw";
-        modal.innerHTML = `<div class="gameover"><h2 class="${win ? "win" : "lose"}">${draw ? "平局" : win ? "胜利！" : "败北…"}</h2><p style="color:var(--dim);">${draw ? "双方同归于尽" : win ? "你击败了 AI" : "AI 取得了胜利"}</p><div class="btns"><button class="btn" id="again">再来一局</button></div></div>`;
+        modal.innerHTML = `<div class="gameover"><h2 class="${draw ? "draw" : win ? "win" : "lose"}">${draw ? "平局" : win ? "胜利！" : "败北…"}</h2><p class="go-sub">${draw ? "双方同归于尽" : win ? "你击败了 AI" : "AI 取得了胜利"}</p><div class="btns"><button class="btn" id="again">再来一局</button></div></div>`;
         $("again").onclick = () => {
           delete mask.dataset.gameover;
           mask.classList.remove("show");
@@ -3446,6 +4334,9 @@
         redeyes: "🐲",
         harpie: "🦅",
         magnet: "🧲",
+        warrior: "🗡️",
+        zombie: "🧟",
+        fairy: "👼",
       };
       function openDeckSelect() {
         const mask = $("modal-mask");
@@ -3458,6 +4349,27 @@
         modal.innerHTML = `<h3>选择卡组</h3>
           <div class="pick-label">你的卡组</div><div class="pick-row" id="pick-me"></div>
           <div class="pick-label">AI 的卡组</div><div class="pick-row" id="pick-ai"></div>
+          <div class="pick-label">对手</div>
+          <div class="opp-row">
+            <button type="button" class="opp-opt" id="opp-ai">⚙ 内置 AI</button>
+            <button type="button" class="opp-opt" id="opp-llm">🤖 大模型</button>
+          </div>
+          <div class="llm-cfg" id="llm-cfg" style="display:none">
+            <div class="cfg-grid">
+              <label>供应商<select id="llm-preset"></select></label>
+              <label>模型<input id="llm-model" /></label>
+              <label>Base URL<input id="llm-base" /></label>
+              <label>API Key<input id="llm-key" type="password" placeholder="留空则用服务端密钥" /></label>
+              <label>调用方式<select id="llm-callmode"><option value="proxy">代理（/api/llm）</option><option value="direct">直连</option></select></label>
+              <label>温度<input id="llm-temp" type="number" step="0.1" min="0" max="2" /></label>
+              <label>思考档位<select id="llm-thinking"><option value="off">关闭（不支持时自动 low）</option><option value="low">low（较快）</option><option value="high">high（更强更慢）</option><option value="max">max（最强最慢）</option></select></label>
+            </div>
+            <div class="cfg-btns">
+              <button class="btn ghost" id="llm-save">保存配置</button>
+              <button class="btn ghost" id="llm-test">测试连接</button>
+            </div>
+            <div class="cfg-note" id="llm-note"></div>
+          </div>
           <div class="btns"><button class="btn ghost" id="deck-cancel">取消</button><button class="btn" id="deck-start">开始对局</button></div>`;
         const buildRow = (elId, cur, onPick) => {
           const row = $(elId);
@@ -3465,11 +4377,9 @@
             const w = document.createElement("div");
             w.className = "opt" + (name === cur ? " picked" : "");
             const card = document.createElement("div");
-            card.className = "card menu-card";
-            card.style.cssText =
-              "width:84px;height:118px;display:grid;place-items:center;background:linear-gradient(160deg,#223,#445);border-radius:10px;";
+            card.className = "deck-tile";
             const em = document.createElement("div");
-            em.style.cssText = "font-size:30px;";
+            em.className = "dt-em";
             em.textContent = DECK_EMOJIS[name] || "🃏";
             card.appendChild(em);
             w.appendChild(card);
@@ -3499,6 +4409,86 @@
             .querySelectorAll(".opt")
             [presets.indexOf(name)].classList.add("picked");
         });
+        // ---------- 对手模式（内置 AI / 大模型）与 LLM 配置面板 ----------
+        const LLM = window.YGO_LLM;
+        const cfgPanel = $("llm-cfg");
+        const noteEl = $("llm-note");
+        const refreshNote = () => {
+          const ready = LLM.cfgReady(LLM.loadCfg());
+          noteEl.className =
+            "cfg-note" + (opponentMode === "llm" && !ready ? " warn" : "");
+          noteEl.textContent =
+            opponentMode === "llm"
+              ? ready
+                ? "密钥仅存本地 localStorage；决策失败会自动回退内置 AI。"
+                : "⚠ 尚未配置 Base URL / 模型，开始对局后将全程使用内置 AI。"
+              : "";
+        };
+        const refreshOppUI = () => {
+          $("opp-ai").classList.toggle("picked", opponentMode === "ai");
+          $("opp-llm").classList.toggle("picked", opponentMode === "llm");
+          cfgPanel.style.display = opponentMode === "llm" ? "" : "none";
+          refreshNote();
+        };
+        const presetSel = $("llm-preset");
+        LLM.PRESETS.forEach((p, i) => {
+          const o = document.createElement("option");
+          o.value = String(i);
+          o.textContent = p.name;
+          presetSel.appendChild(o);
+        });
+        const fillCfgForm = () => {
+          const cfg = LLM.loadCfg();
+          presetSel.value = String(
+            Math.max(0, LLM.PRESETS.findIndex((p) => p.name === cfg.preset)),
+          );
+          $("llm-base").value = cfg.baseUrl || "";
+          $("llm-model").value = cfg.model || "";
+          $("llm-key").value = cfg.apiKey || "";
+          $("llm-callmode").value = cfg.callMode || "proxy";
+          $("llm-temp").value = cfg.temperature ?? 0.3;
+          $("llm-thinking").value = cfg.thinking || "low";
+        };
+        presetSel.onchange = () => {
+          const p = LLM.PRESETS[Number(presetSel.value)];
+          if (p && p.name !== "自定义") {
+            $("llm-base").value = p.baseUrl;
+            $("llm-model").value = p.model;
+          }
+        };
+        const collectCfg = () => ({
+          preset: LLM.PRESETS[Number(presetSel.value)].name,
+          baseUrl: $("llm-base").value.trim(),
+          model: $("llm-model").value.trim(),
+          apiKey: $("llm-key").value.trim(),
+          callMode: $("llm-callmode").value,
+          temperature: parseFloat($("llm-temp").value) || 0.3,
+          thinking: $("llm-thinking").value,
+        });
+        $("opp-ai").onclick = () => {
+          saveOppMode("ai");
+          refreshOppUI();
+        };
+        $("opp-llm").onclick = () => {
+          saveOppMode("llm");
+          refreshOppUI();
+        };
+        $("llm-save").onclick = () => {
+          LLM.saveCfg(collectCfg());
+          toast("大模型配置已保存");
+          refreshNote();
+        };
+        $("llm-test").onclick = async () => {
+          toast("测试中…");
+          try {
+            const t = await LLM.testConnection(collectCfg());
+            toast("连接成功：" + t);
+          } catch (e) {
+            toast("连接失败：" + (e.message || e));
+          }
+        };
+        fillCfgForm();
+        refreshOppUI();
         $("deck-start").onclick = () => {
           delete mask.dataset.gameover;
           mask.classList.remove("show");
@@ -3530,12 +4520,14 @@
         }
         el.innerHTML = inner;
         document.body.appendChild(el);
-        // anime 统一驱动：滑入放大 → 停留 → 上浮淡出移除
+        // anime 统一驱动：模糊→清晰滑入放大 → 停留 → 上浮淡出移除
         const hold = opts.hold != null ? opts.hold : 1100;
+        const isBanner = cls.includes("banner");
         animate(el, {
           opacity: [0, 1],
           y: [14, 0],
           scale: [0.92, 1],
+          filter: isBanner ? ["blur(8px)", "blur(0px)"] : undefined,
           duration: opts.dur || 300,
           ease: "outCubic",
           onComplete: () => {
@@ -3562,16 +4554,83 @@
           { dur: 340, hold: 1500 },
         );
       }
+      /* ===================== 事件通知队列（串行） =====================
+         引擎每 emit 一个事件，fxEvent 调 notify() 入队并 await 播完，
+         因此召唤/发动/攻击等反馈永远一条一条出现，不再同时堆叠。 */
+      const NOTIFY_HOLD = {
+        summon: 950,
+        activate: 1150,
+        attack: 850,
+        damage: 800,
+        destroy: 900,
+        grave: 780,
+        draw: 520,
+        info: 680,
+      };
+      const NOTIFY_CAP = 4; // 洪峰保护：队列上限，过旧通知直接放行
+      const notifyQueue = [];
+      let notifyBusy = false;
+      let notifyEl = null;
+      function actorText(actor) {
+        return actor === "me" ? "你" : "AI";
+      }
+      function notify(text, kind = "info", opts = {}) {
+        return new Promise((resolve) => {
+          notifyQueue.push({ text, kind, opts, resolve });
+          while (notifyQueue.length > NOTIFY_CAP) notifyQueue.shift().resolve();
+          pumpNotify();
+        });
+      }
+      function pumpNotify() {
+        if (notifyBusy) return;
+        notifyBusy = true;
+        (async () => {
+          while (notifyQueue.length) {
+            const item = notifyQueue.shift();
+            await showNotify(item);
+            item.resolve();
+          }
+          notifyBusy = false;
+        })();
+      }
+      function showNotify({ text, kind, opts }) {
+        return new Promise((resolve) => {
+          if (!notifyEl) {
+            notifyEl = $("event-notify");
+          }
+          const scale = PACE_SCALE[paceMode] || 1;
+          const hold = (NOTIFY_HOLD[kind] ?? 720) * scale;
+          notifyEl.className = "event-notify k-" + kind + (opts.big ? " big" : "");
+          notifyEl.querySelector(".en-ic").innerHTML =
+            opts.icon ||
+            {
+              summon: IC.setCard,
+              activate: IC.spark,
+              attack: IC.sword,
+              damage: IC.sword,
+              destroy: IC.ban,
+              grave: IC.ban,
+              draw: IC.draw,
+              info: IC.spark,
+            }[kind] ||
+            "";
+          notifyEl.querySelector(".en-tx").textContent = text;
+          void notifyEl.offsetWidth; // 重启入场过渡
+          notifyEl.classList.add("show");
+          setTimeout(() => {
+            notifyEl.classList.remove("show");
+            setTimeout(resolve, 170); // 等退场过渡结束再放下一条
+          }, 200 + hold);
+        });
+      }
       function fxActBanner(card, actor) {
         const name = card ? card.name : "";
         const extra =
           card && card.cid === "kuriboh" ? "（该次战斗伤害无效）" : "";
-        fxEl(
-          `<span class="fx-act-txt">✨ ${actor === "me" ? "玩家" : "AI"} 发动：${name}${extra}</span>`,
-          null,
-          null,
-          "fx-act-banner",
-          { dur: 260, hold: 900 },
+        return notify(
+          `${actorText(actor)}发动「${name}」${extra}`,
+          "activate",
+          { big: true },
         );
       }
       function fxPhaseBanner(phase, player) {
@@ -3689,47 +4748,114 @@
             return null;
           case "draw_card":
             sfx("draw");
-            break;
-          case "summon":
-            if (!ev.hidden) {
+            // 只提示张数动作，不透露抽到的卡（对方手牌信息保密）
+            return notify(
+              ev.player === "me" ? "你抽到了一张卡" : "AI 抽了一张卡",
+              "draw",
+            );
+          case "summon": {
+            const who = actorText(ev.actor);
+            let text;
+            if (ev.hidden) {
+              text = `${who}覆盖了1只怪兽`;
+            } else {
+              const kindName =
+                {
+                  normal: "通常召唤",
+                  tribute: "祭品召唤",
+                  special: "特殊召唤",
+                  fusion: "融合召唤",
+                }[ev.summonKind] || "召唤";
+              text = `${who}${who === "AI" ? " " : ""}${kindName}「${ev.monster ? ev.monster.name : "?"}」`;
               fxSummon3D(ev.monster);
-              return fxPause(300);
+              sfx("summon");
             }
-            break;
+            return Promise.all([fxPause(ev.hidden ? 0 : 300), notify(text, "summon")]);
+          }
           case "activate":
             if (ev.source === "auto") {
               fxGlow3D(ev.card, "#e6b24a");
-              break;
+              return null;
             }
-            fxActBanner(ev.card, ev.actor);
             fxGlow3D(ev.card, "#e6b24a");
             sfx("activate");
-            return fxPause(320);
-          case "attack_declare":
+            return Promise.all([
+              fxActBanner(ev.card, ev.actor),
+              fxPause(320),
+            ]);
+          case "attack_declare": {
             fxAttack3D(ev.attacker, ev.target);
-            return fxPause(340);
-          case "damage_calc":
+            sfx("attack");
+            const text = ev.target
+              ? `${actorText(ev.actor)}的「${ev.attacker ? ev.attacker.name : "?"}」攻击「${ev.target.name}」`
+              : `${actorText(ev.actor)}的「${ev.attacker ? ev.attacker.name : "?"}」直接攻击！`;
+            return Promise.all([fxPause(340), notify(text, "attack")]);
+          }
+          case "damage_calc": {
             fxImpact3D(ev);
-            return fxPause(290);
+            const text =
+              (ev.direct ? "直接攻击！造成 " : "造成 ") +
+              (ev.damage || 0) +
+              " 点战斗伤害";
+            return Promise.all([fxPause(290), notify(text, "damage")]);
+          }
           case "destroyed_by_battle":
             fxBurst3D(ev.card, "#ffd24a");
-            return fxPause(240);
+            return Promise.all([
+              fxPause(240),
+              notify(`「${ev.card.name}」被战斗破坏`, "destroy"),
+            ]);
           case "sent_to_grave":
             if (ev.from === "field") {
-              if (ev.reason === "effect" || ev.reason === "negate")
+              if (ev.reason === "effect" || ev.reason === "negate") {
                 fxBurst3D(ev.card, "#ff6b4a");
-              else if (ev.reason === "tribute" || ev.reason === "fusion")
+                return Promise.all([
+                  fxPause(240),
+                  notify(`「${ev.card.name}」被效果破坏`, "destroy"),
+                ]);
+              } else if (ev.reason === "tribute") {
                 fxGlow3D(ev.card, "#c9a86a");
+                return Promise.all([
+                  fxPause(200),
+                  notify(`「${ev.card.name}」成为祭品`, "grave"),
+                ]);
+              } else if (ev.reason === "fusion") {
+                fxGlow3D(ev.card, "#c9a86a");
+                return Promise.all([
+                  fxPause(200),
+                  notify(`「${ev.card.name}」作为融合素材送入墓地`, "grave"),
+                ]);
+              }
             }
-            break;
+            return null;
+          case "banish":
+            return notify(`「${ev.card.name}」被除外`, "destroy");
+          case "return_to_hand":
+            return notify(`「${ev.card.name}」回到手牌`, "grave");
+          case "control_change":
+            return notify(
+              `「${ev.monster.name}」控制权转移给${actorText(ev.to)}`,
+              "info",
+            );
           case "flip":
             if (ev.monster) {
               const g = cardMeshes.get(ev.monster.uid);
               if (g) tween3D(g, { rotY: Math.PI * 2 }, 380, "easeInOut", null);
               sfx("flip");
-              return fxPause(240);
+              const who = ev.by === "flipSummon" ? actorText(ev.owner) : null;
+              return Promise.all([
+                fxPause(240),
+                who
+                  ? notify(`${who}翻转召唤「${ev.monster.name}」`, "summon")
+                  : Promise.resolve(),
+              ]);
             }
             break;
+          case "position_change":
+            return notify(
+              `「${ev.monster.name}」切换为${ev.to === "atk" ? "攻击" : "守备"}表示`,
+              "info",
+            );
           case "lp_change":
             fxLpFloat(ev.player, ev.delta);
             if (ev.delta < 0) shakeBoard();
@@ -3753,6 +4879,7 @@
       function newGame() {
         logBuf = [];
         $("log-body").innerHTML = "";
+        $("llm-think").classList.remove("show");
         winnerShown = false;
         prevLp = { me: 8000, ai: 8000 };
         lastChainLen = 0;
@@ -3763,11 +4890,17 @@
         $("log-panel").classList.remove("show");
         closeMenu();
         exitMode();
-        // 清空 3D 场景
-        for (const [, g] of cardMeshes) scene.remove(g);
+        // 清空 3D 场景并释放 GPU 资源（几何体/材质/纹理），避免重开局累积显存
+        for (const [, g] of cardMeshes) {
+          scene.remove(g);
+          disposeCardGroup(g);
+        }
         cardMeshes.clear();
+        for (const t of texCache.values()) t.dispose();
         texCache.clear();
+        for (const t of artCache.values()) if (t) t.dispose();
         artCache.clear();
+        artImg.clear();
         if (duel) {
           duel.state.winner = null;
           duel = null;
@@ -3778,6 +4911,7 @@
             aiPreset: aiDeckChoice,
             pace: PACE_PRESETS[paceMode].pace,
             promptDelay: PACE_PRESETS[paceMode].promptDelay,
+            aiDelay: opponentMode === "llm" ? 150 : 650, // 大模型模式下思考耗时本身构成节奏
           },
           {
             onState: () => {
@@ -3792,6 +4926,14 @@
             },
           },
         );
+        if (opponentMode === "llm") {
+          // 引擎构造后再挂载自定义 AI（start() 前生效）；内置 AiPlayer 作为兜底
+          const llm = ensureLlmPlayer();
+          llm._fallbackToasted = false;
+          llm.attach(duel, new AiPlayer(duel));
+          duel.ai = llm;
+          pushLog("本局对手：🤖 大模型（" + (window.YGO_LLM.loadCfg().model || "未配置") + "）", true);
+        }
         duel.start();
       }
 
@@ -3815,9 +4957,15 @@
         if (canAct() && ["main1", "battle"].includes(duel.state.phase))
           duel.endTurn();
       };
+      // 头部图标按钮：统一注入内联 SVG
+      $("btn-pace").innerHTML = IC.pace;
+      $("btn-sfx").innerHTML = IC.sfxOn;
+      $("btn-log").innerHTML = IC.log;
+      $("btn-help").innerHTML = IC.help;
+      $("btn-log-close").innerHTML = IC.close;
       $("btn-sfx").onclick = () => {
         sfxOn = !sfxOn;
-        $("btn-sfx").textContent = sfxOn ? "🔊" : "🔇";
+        $("btn-sfx").innerHTML = sfxOn ? IC.sfxOn : IC.sfxOff;
         if (sfxOn) sfx("turn");
       };
       $("btn-pace").onclick = () => {
@@ -3828,11 +4976,9 @@
         } catch (e) {
           /* 忽略存储失败 */
         }
-        $("btn-pace").textContent = PACE_PRESETS[paceMode].label.charAt(0);
         $("btn-pace").title = "游戏节奏：" + PACE_PRESETS[paceMode].label;
         toast("游戏节奏：" + PACE_PRESETS[paceMode].label);
       };
-      $("btn-pace").textContent = PACE_PRESETS[paceMode].label.charAt(0);
       $("btn-pace").title = "游戏节奏：" + PACE_PRESETS[paceMode].label;
       $("btn-log").onclick = () => $("log-panel").classList.toggle("show");
       $("btn-log-close").onclick = () =>

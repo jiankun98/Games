@@ -1,0 +1,14 @@
+{
+  "name": "传奇觉醒",
+  "short_name": "传奇觉醒",
+  "description": "类烈焰觉醒的横屏传奇挂机游戏",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#141210",
+  "theme_color": "#141210",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
