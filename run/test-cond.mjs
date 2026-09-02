@@ -1,21 +1,17 @@
-"use strict";
 // 手动发动 condition 前置校验回归测试：
 //  1) 黑魔术的幕帘：手牌无黑魔术师 -> 拒绝发动（卡留手、LP 不变）
 //  2) 黑魔术的幕帘：手牌有黑魔术师 -> 正常发动（LP 减半、黑魔术师特召）
 //  3) 青眼贤士（场上）：手牌无青眼白龙 -> 拒绝发动效果（不被祭品）
-// 用法： node run/test-cond.js
+// 用法： node run/test-cond.mjs
 // 退出码：0=通过，1=BUG
-global.window = global;
-require("../games/YuGiOh/cards.js");
-require("../games/YuGiOh/ai-player.js");
-require("../games/YuGiOh/index.js");
+import { Duel } from "../games/YuGiOh/engine/duel.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const logs = [];
 const toasts = [];
 
 function newDuel(deckIds) {
-  return new window.Duel(
+  return new Duel(
     { playerDeck: deckIds, aiDeck: Array(40).fill("celtic"), playerExtra: [], aiExtra: [], aiDelay: 0, pace: 0, promptDelay: 0 },
     { onLog: (m) => logs.push(m), onState: () => {}, onToast: (m) => toasts.push(m), onGameOver: () => {} },
   );

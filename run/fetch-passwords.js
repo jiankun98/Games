@@ -146,7 +146,7 @@ async function fetchPassword(name) {
 
 async function main() {
   const apply = process.argv.includes("--apply");
-  const cardsPath = path.resolve(__dirname, "../games/YuGiOh/cards.js");
+  const cardsPath = path.resolve(__dirname, "../games/YuGiOh/cards.mjs");
   let src = fs.readFileSync(cardsPath, "utf8");
 
   // 1) 补齐经典卡卡密

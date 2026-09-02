@@ -2,7 +2,7 @@
 // 将 run/new-presets.js 中的卡组预设注入 cards.js，并设置 60 张上限
 const fs = require("fs");
 const path = require("path");
-const cardsPath = path.resolve(__dirname, "../games/YuGiOh/cards.js");
+const cardsPath = path.resolve(__dirname, "../games/YuGiOh/cards.mjs");
 const presetSrc = fs.readFileSync(path.resolve(__dirname, "new-presets.js"), "utf8");
 const m = presetSrc.match(/const DECK_PRESETS = \{[\s\S]*?\n\};/);
 if (!m) throw new Error("new-presets.js 格式错误");

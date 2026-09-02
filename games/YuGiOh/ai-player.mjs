@@ -1,9 +1,8 @@
-"use strict";
 /*
  * 游戏王·AI 玩家（独立模块，与规则引擎解耦）
  *  - 只通过 Duel 的公开接口读取局面、执行动作，不触碰引擎内部实现。
  *  - 引擎在 AI 回合与决策点（连锁/选目标/弃牌）回调本模块，由 config.ai 注入（默认实例化本类）。
- * 依赖顺序：cards.js -> index.js -> ai-player.js（本文件自包含，不依赖其他文件的顶层常量）
+ *  - 本文件自包含，不依赖其他模块的顶层常量。
  */
 /** 怪兽区数量（与引擎一致，独立声明以兼容模块加载环境） */
 const AI_MONSTER_ZONES = 5;
@@ -515,4 +514,4 @@ class AiPlayer {
         return { pass: false, card: x.card, trigger: x.trigger };
     }
 }
-window.AiPlayer = AiPlayer;
+export { AiPlayer };

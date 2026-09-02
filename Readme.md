@@ -140,14 +140,15 @@ npm start           # 等价于 node run/game.js
 - 卡密数据由 YGOProDeck 官方 API 校准（`run/fetch-passwords.js` 可重跑校验，149 张卡图全部可用）。
 - 3D 版卡图经本地 `/api/img` 代理转发（域名白名单，规避 CORS 与 Canvas 纹理污染）；2D 版直连图源。
 
-### 文件结构
+### 文件结构（ES Module：引擎与 UI 均为 .mjs，无打包器）
 
-- `games/YuGiOh/cards.js` — 卡牌数据与效果定义（149 张卡、卡组预设）
-- `games/YuGiOh/index.js` — 决斗引擎（阶段 / 召唤 / 战斗 / 连锁 / 事件总线 / 胜负）
-- `games/YuGiOh/ai-player.js` — 启发式 AI（召唤、攻击与连锁决策）
+- `games/YuGiOh/cards.mjs` — 卡牌数据与效果声明（149 张卡、11 套卡组预设；triggers / continuous）
+- `games/YuGiOh/engine/` — 决斗引擎：`duel.mjs` 门面 + 九个子模块（state / prompt / events / chain / turn / summon / action / battle / api）+ `boot.mjs`（2D 页全局兼容层）
+- `games/YuGiOh/ai-player.mjs` / `llm-player.mjs` — 启发式 AI / 大模型对手（同一 5 回调契约）
 - `games/YuGiOh/game.html` — 2D 对局界面
-- `games/YuGiOh/game3d.html` — 3D 对局界面（Three.js）
-- `run/test-swords.js` / `run/test-cylinder.js` / `run/test-cond.js` — 引擎回归测试（node 直跑）
+- `games/YuGiOh/game3d.html` + `game3d.css` + `games/YuGiOh/ui3d/` — 3D 对局界面（薄入口 + 九模块：store/labels/sfx/domfx/scene/hud/actions/fxevent/main）
+- `run/test-*.mjs`（7 个回归测试）与 `run/check-decks.mjs`（卡组校验）— node 直跑
+- `games/YuGiOh/ENGINE.md` — 引擎与 3D UI 实现文档（事件定义 / 状态参数 / 调用链）
 
 ## 7. 赵云与阿斗（水墨文字塔防 · 无尽）
 

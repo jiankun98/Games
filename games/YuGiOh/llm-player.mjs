@@ -1,4 +1,3 @@
-"use strict";
 /*
  * 游戏王·大模型玩家（与内置 AiPlayer 同一契约的可替换对手）
  *  - 实现引擎回调的 5 个方法：mainPhase / battlePhase / pickTargets / pickDiscard / decideChain。
@@ -6,10 +5,9 @@
  *  - 行动执行完全复用内置 AI 走过的引擎原语（doSummon / activateAndResolve / damageStep ...），规则安全性一致。
  *  - 任何失败（未配置/网络/超时/非法输出）都回退内置 AiPlayer 的对应决策，对局永不中断。
  *  - 信息净化：模型只能看到自己手牌与双方明面信息；对手手牌仅张数，里侧卡一律"里侧卡牌"。
- * 依赖顺序：cards.js -> index.js -> ai-player.js -> llm-player.js
+ *  - 仅浏览器环境可用（localStorage / fetch）。
  */
-(function () {
-  const AI_MONSTER_ZONES = 5;
+const AI_MONSTER_ZONES = 5;
   const AI_NO_EVENT = {};
   const REQUEST_TIMEOUT = 90000; // 单次决策超时（思考型模型留足时间）
   const CFG_KEY = "ygo.llm";
@@ -729,13 +727,12 @@ ids 必须恰好包含 count 个不重复的候选 id。`;
       }
     }
 
-    /* ---------- 估值（供祭品/枚举排序，与内置 AI 一致） ---------- */
-    monValue(m) {
+  /* ---------- 估值（供祭品/枚举排序，与内置 AI 一致） ---------- */
+  monValue(m) {
       const st = this.duel.stats(m);
       return st.atk + st.def * 0.2 + (m.effect ? 300 : 0);
     }
-  }
+}
 
-  window.LlmPlayer = LlmPlayer;
-  window.YGO_LLM = { PRESETS, DEFAULT_CFG, loadCfg, saveCfg, cfgReady, testConnection };
-})();
+export const YGO_LLM = { PRESETS, DEFAULT_CFG, loadCfg, saveCfg, cfgReady, testConnection };
+export { LlmPlayer };

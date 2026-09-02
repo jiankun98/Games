@@ -1,16 +1,12 @@
-"use strict";
 // 魔法筒回归测试：发动一次后不应再被连锁/再次反射伤害。
 // 场景：玩家盖魔法筒 -> AI 每回合召唤精灵剑士直接攻击。
-// 正确行为：魔法筒只发动一次（AI 受 1500 伤害），之后 AI 攻击正常对玩家造成伤害。
-// 用法： node run/test-cylinder.js
+// 正确行为：魔法筒只发动一次（AI 受 1400 伤害），之后 AI 攻击正常对玩家造成伤害。
+// 用法： node run/test-cylinder.mjs
 // 退出码：0=通过，1=BUG，2=不确定
-global.window = global;
-require("../games/YuGiOh/cards.js");
-require("../games/YuGiOh/ai-player.js");
-require("../games/YuGiOh/index.js");
+import { Duel } from "../games/YuGiOh/engine/duel.mjs";
 
 const logs = [];
-const duel = new window.Duel(
+const duel = new Duel(
   {
     playerDeck: Array(40).fill("magiccylinder"),
     aiDeck: Array(40).fill("celtic"),

@@ -4,9 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>游戏王·决斗对战</title>
-    <script src="./cards.js?v=2"></script>
-    <script src="./index.js?v=2"></script>
-    <script src="./ai-player.js?v=2"></script>
+    <script type="module" src="./engine/boot.mjs?v=1"></script>
     <style>
       :root {
         --bg: #0b0e16;
@@ -1297,7 +1295,8 @@
         if (e.target.closest(".card") || e.target.closest("button") || e.target.closest(".modal-mask") || e.target.closest(".mode-bar") || e.target.closest(".pile") || e.target.closest("header")) return;
       };
 
-      newGame();
+      // 引擎为 ES Module（延迟执行），等模块加载完成后再开局
+      document.addEventListener("DOMContentLoaded", () => newGame());
     </script>
   </body>
 </html>

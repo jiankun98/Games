@@ -1,6 +1,5 @@
-"use strict";
 /*
- * 游戏王·卡牌数据与处理器（事件驱动版，TypeScript）
+ * 游戏王·卡牌数据与处理器（事件驱动版，ES Module）
  *  每张卡的 effect.triggers 声明：{ event, auto, condition?, cost?, acquireTargets?, resolve? }
  *  永续/场地/装备另声明 effect.continuous: (self, mon, g) => { atkDelta, defDelta }
  *  所有特殊处理都在此文件内，通过 g 原语操作；引擎不认识任何具体卡。
@@ -1326,7 +1325,7 @@ function buildDeck(preset) {
     const def = DECK_PRESETS[preset || "classic"];
     const counts = {};
     for (const id of def.main)
-        if (window.YGO_CARD_BY_ID[id])
+        if (CARD_BY_ID[id])
             counts[id] = (counts[id] || 0) + 1;
     const deck = [];
     for (const id of Object.keys(counts))
@@ -1336,7 +1335,7 @@ function buildDeck(preset) {
 }
 function buildExtra(preset) {
     const def = DECK_PRESETS[preset || "classic"];
-    return (def.extra || []).filter((id) => window.YGO_CARD_BY_ID[id]);
+    return (def.extra || []).filter((id) => CARD_BY_ID[id]);
 }
 // 卡密（ygoprodeck 官方密码，8 位）—— 现有卡补齐
 const PASSWORDS = {
@@ -1359,8 +1358,4 @@ const PASSWORDS = {
 };
 CARDS.forEach((c) => { if (!c.password && PASSWORDS[c.id])
     c.password = PASSWORDS[c.id]; });
-window.YGO_CARDS = CARDS;
-window.YGO_CARD_BY_ID = CARD_BY_ID;
-window.YGO_BUILD_DECK = buildDeck;
-window.YGO_BUILD_EXTRA = buildExtra;
-window.YGO_DECK_PRESETS = Object.keys(DECK_PRESETS);
+export { CARDS, CARD_BY_ID, DECK_PRESETS, buildDeck, buildExtra };

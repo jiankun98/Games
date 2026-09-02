@@ -1,14 +1,10 @@
-"use strict";
 // 光之护封剑回归测试：玩家发动后，AI 是否被封锁攻击。
-// 用法： node run/test-swords.js
+// 用法： node run/test-swords.mjs
 // 退出码：0=通过（AI 被封锁），1=BUG（AI 无视封锁发动攻击），2=结果不明确
-global.window = global;
-require("../games/YuGiOh/cards.js");
-require("../games/YuGiOh/ai-player.js");
-require("../games/YuGiOh/index.js");
+import { Duel } from "../games/YuGiOh/engine/duel.mjs";
 
 const logs = [];
-const duel = new window.Duel(
+const duel = new Duel(
   {
     playerDeck: Array(40).fill("swords"),
     aiDeck: Array(40).fill("celtic"),
@@ -19,6 +15,14 @@ const duel = new window.Duel(
 );
 duel.start();
 
+const waitUntil = async (cond, ms) => {
+  const t0 = Date.now();
+  while (!cond()) {
+    if (Date.now() - t0 > ms) throw new Error("等待超时");
+    await new Promise((r) => setTimeout(r, 50));
+  }
+};
+
 setTimeout(async () => {
   try {
     const handIdx = duel.state.me.hand.findIndex((c) => c.cid === "swords");
@@ -28,13 +32,6 @@ setTimeout(async () => {
     console.log("spellZone[0]:", duel.state.me.spellZone[0] && duel.state.me.spellZone[0].cid);
     await duel.endTurn(); // AI 回合完整跑完
     // _endTurn 内部 fire-and-forget 启动下一回合，轮询等待 AI 回合结束交还
-    const waitUntil = async (cond, ms) => {
-      const t0 = Date.now();
-      while (!cond()) {
-        if (Date.now() - t0 > ms) throw new Error("等待超时");
-        await new Promise((r) => setTimeout(r, 50));
-      }
-    };
     await waitUntil(() => duel.state.turnPlayer === "me" || duel.state.winner, 8000);
     console.log("after AI turn:", "turn", duel.state.turn, "| turnPlayer", duel.state.turnPlayer, "| winner", duel.state.winner);
     const lockLogs = logs.filter((l) => l.includes("光之护封剑"));
