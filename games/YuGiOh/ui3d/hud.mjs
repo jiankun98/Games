@@ -4,11 +4,11 @@
  *  局部可变状态（logBuf/prevLp/winnerShown/lastChainLen/toastTimer）为本模块私有；共享状态读 store.S。
  */
 import { animate } from "animejs";
-import { S, saveOppMode } from "./store.mjs";
+import { S, saveOppMode, hiddenForMe } from "./store.mjs";
 import { IC, ATTR_EM, RACE_EM, DECK_LABELS, DECK_EMOJIS, PHASE_TIPS, PHASE_NAMES } from "./labels.mjs";
 import { sfx } from "./sfx.mjs";
 import { flashScreen } from "./domfx.mjs";
-import { chipEls, projectMesh, artUrl, setZoneHighlight3D } from "./scene.mjs";
+import { chipEls, projectMesh, artUrl, setZoneHighlight3D, sync3D, updateLP3D, setLpTurn3D } from "./scene.mjs";
 import { availableActions, handPlacementZones } from "./actions.mjs";
 import { DECK_PRESETS } from "../cards.mjs";
 import { YGO_LLM } from "../llm-player.mjs";
@@ -16,9 +16,10 @@ const $ = (id) => document.getElementById(id);
 
 let toastTimer = null;
 let logBuf = [];
-let prevLp = { me: 8000, ai: 8000 };
+let prevLp = { me: 8000, ai: 8000 }; // resetHud 时按 S.startLP 重置
 let winnerShown = false;
 let lastChainLen = 0;
+const stage = document.getElementById("stage"); // 显式获取（原先依赖 window.stage 隐式全局）
 
       /* ===================== DOM 卡牌（菜单/弹窗展示用） ===================== */
       function cardEl(card, opts = {}) {
@@ -94,10 +95,8 @@ let lastChainLen = 0;
         if (!s) return;
         updateLP("me", s.me.lp);
         updateLP("ai", s.ai.lp);
-        // 当前行动方 LP 行呼吸光晕
-        const meTurn = s.turnPlayer === "me" && !s.winner;
-        $("lp-row-me").classList.toggle("active", meTurn);
-        $("lp-row-ai").classList.toggle("active", !meTurn && !s.winner);
+        // 当前行动方 LP 屏浮动强调（3D 屏边框加亮 + 指示点）
+        setLpTurn3D(s.winner ? null : s.turnPlayer);
         // 回合信息单一来源：顶部一条完整展示（第 N 回合 · 谁的回合 · 阶段全称）
         const tp = s.turnPlayer;
         $("phase-tag").textContent =
@@ -124,27 +123,10 @@ let lastChainLen = 0;
         if (s.winner && !winnerShown) showGameOver(s.winner);
       }
       function updateLP(who, val) {
-        const el = $(`lp-${who}`);
-        if (el.textContent !== String(val)) {
-          el.textContent = val;
-          el.classList.remove("bump");
-          void el.offsetWidth; // 重启动画
-          el.classList.add("bump");
-        }
-        const fill = $(`lp-${who}-fill`);
-        fill.style.width = Math.max(0, (val / 8000) * 100) + "%";
-        if (val < prevLp[who]) {
-          animate($(`lp-${who}-bar`), {
-            boxShadow: [
-              "0 0 0px rgba(229,72,77,0)",
-              "0 0 18px rgba(229,72,77,0.9)",
-              "0 0 0px rgba(229,72,77,0)",
-            ],
-            duration: 460,
-            ease: "linear",
-          });
-          if (who === "me") flashScreen("rgba(229,72,77,0.25)");
-        }
+        // 3D LP 屏：数字滚动补间 + 掉血红闪（分母 S.startLP，百分比 clamp 0~100）
+        updateLP3D(who, val);
+        if (val < prevLp[who] && who === "me")
+          flashScreen("rgba(229,72,77,0.25)"); // 玩家受击的屏幕红闪反馈
         prevLp[who] = val;
       }
       function renderTurnBar(s) {
@@ -157,7 +139,6 @@ let lastChainLen = 0;
           : "AI 行动中…";
         $("turn-bar").className = "turn-bar" + (mine ? "" : " ai");
         const mainBtn = $("tb-main"),
-          altBtn = $("tb-alt"),
           endBtn = $("tb-end");
         // cls: "primary"（金底主操作）| "end"（描边高亮次主操作）| "ghost"（弱化）
         const set = (b, label, show, cls, enabled) => {
@@ -169,19 +150,15 @@ let lastChainLen = 0;
         const END = IC.flag + " 结束回合<i class='kbd'>P</i>";
         if (s.phase === "main1") {
           set(mainBtn, IC.sword + " 进入战斗<i class='kbd'>B</i>", true, "primary", true);
-          set(altBtn, "", false, "", false);
           set(endBtn, END, true, "end", true);
         } else if (s.phase === "battle") {
           set(mainBtn, IC.gear + " 主阶段 2<i class='kbd'>B</i>", true, "primary", true);
-          set(altBtn, "", false, "", false);
           set(endBtn, END, true, "end", true);
         } else if (s.phase === "main2") {
           set(mainBtn, IC.flag + " 结束回合<i class='kbd'>P</i>", true, "primary", true);
-          set(altBtn, "", false, "", false);
           set(endBtn, "", false, "", true);
         } else {
           set(mainBtn, "—", true, "", false);
-          set(altBtn, "", false, "", false);
           set(endBtn, "", false, "", false);
         }
       }
@@ -205,7 +182,7 @@ let lastChainLen = 0;
       /* ===================== popover 菜单 ===================== */
       function openMenu(card, info, mesh3d) {
         if (S.duel.state.pending || S.duel.state.resolving) return;
-        if (S.mode && (S.mode === "attack" || S.mode === "tribute")) return;
+        if (S.mode) return; // 任何多步模式（攻击/祭品/放置）中都不弹菜单（路由层已拦，双保险）
         closeMenu();
         S.menuOpen = true;
         const mask = document.createElement("div");
@@ -215,9 +192,10 @@ let lastChainLen = 0;
         const menu = document.createElement("div");
         menu.className = "card-menu";
         menu.id = "card-menu";
-        const isOppFacedown = info && info.who === "ai" && card.faceDown;
+        // AI 手牌与里侧卡统一按未知处理（不展示卡名/攻防/效果文本）
+        const isOppFacedown = hiddenForMe(card, info);
         const preview = cardEl(card, {
-          stats: card.type === "monster" ? S.duel.stats(card) : null,
+          stats: card.type === "monster" && !isOppFacedown ? S.duel.stats(card) : null,
           back: isOppFacedown,
         });
         preview.classList.add("menu-card");
@@ -226,7 +204,11 @@ let lastChainLen = 0;
         body.className = "menu-body";
         const meta = document.createElement("div");
         meta.className = "meta";
-        if (isOppFacedown) meta.innerHTML = `<b>里侧卡牌</b><br>信息未知`;
+        if (isOppFacedown)
+          meta.innerHTML =
+            info && info.kind === "hand"
+              ? `<b>对方的手牌</b><br>信息未知`
+              : `<b>里侧卡牌</b><br>信息未知`;
         else if (card.type === "monster") {
           const st = S.duel.stats(card);
           meta.innerHTML = `<b>${card.name}</b><br>${card.attribute} · ${card.race} · ${"★".repeat(card.level)} 等级${card.level}<br>ATK <b style="color:var(--accent)">${st.atk}</b> / DEF <b style="color:var(--accent)">${st.def}</b>`;
@@ -241,14 +223,16 @@ let lastChainLen = 0;
         }
         const actions = document.createElement("div");
         actions.className = "actions";
-        const acts = availableActions({ duel: S.duel, ic: IC, closeMenu, startTribute, enterAttackMode }, card, info);
+        const acts = availableActions({ duel: S.duel, ic: IC, closeMenu, startTribute, startPlace, enterAttackMode }, card, info);
         // 合法放置区高亮：手牌召唤/覆盖时点亮可用格（关菜单/切模式时熄灭）
         setZoneHighlight3D(
           info && info.kind === "hand" ? handPlacementZones(S.duel, card) : null,
         );
         if (acts.length)
           acts.forEach((a) => {
-            const b = document.createElement("div");
+            // 用 button 而非 div：可 Tab 聚焦/回车触发（键盘可达）
+            const b = document.createElement("button");
+            b.type = "button";
             b.className = "act-btn" + (a.primary ? " primary" : "");
             b.innerHTML = `<span class="ic">${a.icon}</span><span>${a.label}</span>`;
             b.onclick = (e) => {
@@ -299,12 +283,13 @@ let lastChainLen = 0;
           render();
         }
       }
-      /* ===================== 攻击/祭品模式 ===================== */
+      /* ===================== 攻击/祭品/放置模式 ===================== */
       function enterAttackMode(zoneIdx) {
         closeMenu();
         S.mode = "attack";
         S.attackZone = zoneIdx;
         render();
+        sync3D(); // 模式染色（攻击者蓝/目标红）立即生效
         renderModeBar();
       }
       function startTribute(handIdx) {
@@ -313,6 +298,18 @@ let lastChainLen = 0;
         S.tributeHandIdx = handIdx;
         S.tributePool = [];
         render();
+        sync3D(); // 祭品候选金色高亮立即生效
+        renderModeBar();
+      }
+      /* 放置模式：选中手牌动作后，点亮可用格让玩家点选具体位置
+         place = { handIdx, kind: "monster"|"st", position: "atk"|"def"|"set", tributePool? } */
+      function startPlace(place) {
+        closeMenu();
+        S.mode = "place";
+        S.place = place;
+        const card = S.duel.state.me.hand[place.handIdx];
+        setZoneHighlight3D(handPlacementZones(S.duel, card));
+        render();
         renderModeBar();
       }
       function exitMode() {
@@ -320,8 +317,10 @@ let lastChainLen = 0;
         S.attackZone = null;
         S.tributeHandIdx = null;
         S.tributePool = [];
+        S.place = null;
         setZoneHighlight3D(null);
         render();
+        sync3D(); // 清除模式染色（攻击目标红/祭品金），避免残留
         renderModeBar();
       }
       function toggleTribute(idx) {
@@ -329,6 +328,7 @@ let lastChainLen = 0;
           S.tributePool = S.tributePool.filter((x) => x !== idx);
         else S.tributePool.push(idx);
         render();
+        sync3D(); // 已选祭品金色高亮同步
         renderModeBar();
       }
       function renderModeBar() {
@@ -385,12 +385,17 @@ let lastChainLen = 0;
           bar.appendChild(lbl);
           const ok = document.createElement("button");
           ok.className = "btn";
-          ok.textContent = "确认召唤";
+          ok.textContent = "选位置召唤";
           ok.disabled = S.tributePool.length !== need;
           ok.onclick = () => {
             if (S.tributePool.length === need) {
-              S.duel.tributeSummon(S.tributeHandIdx, [...S.tributePool], null, "atk");
-              exitMode();
+              // 祭品选定后进入放置模式点选落位（tributeSummon 支持指定 zone）
+              startPlace({
+                handIdx: S.tributeHandIdx,
+                kind: "monster",
+                position: "atk",
+                tributePool: [...S.tributePool],
+              });
             }
           };
           bar.appendChild(ok);
@@ -399,6 +404,26 @@ let lastChainLen = 0;
           c.textContent = "取消";
           c.onclick = () => exitMode();
           bar.appendChild(c);
+          return;
+        }
+        if (S.mode === "place") {
+          const card = S.duel.state.me.hand[S.place.handIdx];
+          const verb =
+            S.place.kind === "monster"
+              ? S.place.position === "set"
+                ? "覆盖"
+                : "召唤"
+              : "覆盖魔陷";
+          const lbl = document.createElement("div");
+          lbl.className = "lbl";
+          lbl.textContent = `点击发光的格子，放置「${card ? card.name : "?"}」（${verb}）`;
+          bar.appendChild(lbl);
+          const c = document.createElement("button");
+          c.className = "btn ghost";
+          c.textContent = "取消";
+          c.onclick = () => exitMode();
+          bar.appendChild(c);
+          return;
         }
       }
 
@@ -478,7 +503,8 @@ let lastChainLen = 0;
           }
           return;
         }
-        const oppHidden = !!(card.faceDown && info && info.who === "ai");
+        // AI 手牌与里侧卡对玩家一律未知（防信息泄露：卡名/攻防/效果都不可见）
+        const oppHidden = hiddenForMe(card, info);
         const key = card.uid + ":" + (info && info.who) + ":" + (oppHidden ? 1 : 0);
         if (key === previewKey) return;
         previewKey = key;
@@ -491,7 +517,8 @@ let lastChainLen = 0;
         );
         const meta = document.createElement("div");
         meta.className = "pv-meta";
-        if (oppHidden) meta.innerHTML = `<b>里侧卡牌</b>信息未知`;
+        if (oppHidden)
+          meta.innerHTML = info && info.kind === "hand" ? `<b>对方的手牌</b>信息未知` : `<b>里侧卡牌</b>信息未知`;
         else if (card.type === "monster") {
           const st = S.duel.stats(card);
           meta.innerHTML = `<b>${card.name}</b>${card.attribute || ""} ${card.race || ""} · 等级${card.level || "?"}<br>ATK <i class="atkv">${st.atk}</i> / DEF <i class="atkv">${st.def}</i>`;
@@ -638,7 +665,7 @@ let lastChainLen = 0;
         modal.innerHTML = `<h3>游戏说明（3D 版）</h3><div class="help-list">
           <p><b>阶段</b>：抽卡→准备→主要1→战斗→主要2→结束。用底部回合条推进；先手首回合不抽卡、不能攻击。</p>
           <p><b>快捷键</b>：B 推进阶段（进入战斗 / 主阶段 2）、P 结束回合、Esc 关闭菜单 / 取消模式。悬停卡牌可在左侧查看完整卡牌信息。</p>
-          <p><b>操作</b>：点击 3D 卡牌弹出操作菜单（召唤/覆盖/发动/攻击等）；点击卡组/墓地堆可查看。</p>
+          <p><b>操作</b>：点击 3D 卡牌弹出操作菜单（召唤/覆盖/发动/攻击等），选动作后点击发光格选位置；也可直接把手牌拖到场上发光格快速召唤/覆盖（高星怪兽会转入祭品选择）。点击卡组/墓地堆可查看；右下角可切换视角，滚轮缩放、双击空白复位。</p>
           <p><b>召唤</b>：通常召唤每回合1次；5-6星需1祭品、7星以上需2祭品；覆盖=里侧守备；翻转召唤翻开里侧。</p>
           <p><b>战斗</b>：ATK对ATK比攻差伤害；ATK对守备比攻守，不足部分反伤。含贯穿、直接攻击、攻击响应陷阱。</p>
           <p><b>魔陷</b>：魔法可当回合从手牌发动；陷阱须先覆盖且当回合不可发动。装备给己方怪兽，场地全场生效。</p>
@@ -836,7 +863,7 @@ function resetHud() {
   $("log-body").innerHTML = "";
   $("llm-think").classList.remove("show");
   winnerShown = false;
-  prevLp = { me: 8000, ai: 8000 };
+  prevLp = { me: S.startLP || 8000, ai: S.startLP || 8000 };
   lastChainLen = 0;
   showPreview(null);
   const mask = $("modal-mask");
@@ -848,4 +875,4 @@ function resetHud() {
   exitMode();
 }
 
-export { render, openMenu, closeMenu, pushLog, toast, openListModal, showHelp, showGameOver, openDeckSelect, enterAttackMode, startTribute, exitMode, toggleTribute, resetHud };
+export { render, openMenu, closeMenu, pushLog, toast, openListModal, showHelp, showGameOver, openDeckSelect, enterAttackMode, startTribute, startPlace, exitMode, toggleTribute, resetHud };

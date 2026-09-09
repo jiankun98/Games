@@ -47,7 +47,7 @@ export class ActionOps {
         card.controller = "me";
         await this.activateAndResolve("me", card, trigger, null, "spell-hand", targets);
     }
-    async setSpellTrap(handIdx) {
+    async setSpellTrap(handIdx, zoneIdx) {
         const s = this.state;
         if (s.turnPlayer !== "me" || !(s.phase === "main1" || s.phase === "main2") || s.pending || s.resolving)
             return;
@@ -56,13 +56,16 @@ export class ActionOps {
         const card = p.hand[handIdx];
         if (!card || (card.type !== "spell" && card.type !== "trap"))
             return;
-        const zi = this.freeSTZones(p)[0];
-        if (zi == null) {
+        if (zoneIdx == null)
+            zoneIdx = this.freeSTZones(p)[0];
+        if (zoneIdx == null) {
             this._toast("魔陷区已满。");
             return;
         }
+        if (p.spellZone[zoneIdx])
+            return;
         p.hand.splice(handIdx, 1);
-        p.spellZone[zi] = card;
+        p.spellZone[zoneIdx] = card;
         card.faceDown = true;
         card.turnSet = s.turn;
         card.location = "spell";

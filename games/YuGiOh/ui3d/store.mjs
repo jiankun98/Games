@@ -9,12 +9,20 @@ export const PACE_PRESETS = {
 };
 export const PACE_SCALE = { fast: 0.55, normal: 1, slow: 1.3 }; // 事件通知停留时长随节奏档缩放
 
+/* 对玩家视角应隐藏的卡：AI 的手牌始终未知；AI 的里侧卡（场上覆盖）未知 */
+export function hiddenForMe(card, slot) {
+  if (!card || !slot || slot.who !== "ai") return false;
+  return slot.kind === "hand" || !!card.faceDown;
+}
+
 const S = {
   duel: null, // 当前 Duel 实例
-  mode: null, // 'attack' | 'tribute' | null（多步操作模式）
+  mode: null, // 'attack' | 'tribute' | 'place' | null（多步操作模式）
   attackZone: null,
   tributeHandIdx: null,
   tributePool: [],
+  startLP: 8000, // 本局初始 LP（血条百分比分母，来自 duel.startingLP）
+  place: null, // 'place' 模式参数：{ handIdx, kind, position }（选择召唤/覆盖位置）
   menuOpen: false,
   deckChoice: "classic",
   aiDeckChoice: "classic",

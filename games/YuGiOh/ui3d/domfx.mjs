@@ -60,14 +60,22 @@ const $ = (id) => document.getElementById(id);
           { dur: 300, hold: 800 },
         );
       }
-      function fxLpFloat(player, delta) {
+      function fxLpFloat(player, delta, pos) {
         if (delta >= 0) return;
-        const bar = $(`lp-${player}-bar`);
-        const r = bar.getBoundingClientRect();
+        // pos：浮字定位（由调用方传入 3D LP 屏投影，避免 domfx 反向依赖 scene）
+        const p =
+          pos ||
+          (() => {
+            const r = document.body.getBoundingClientRect();
+            return {
+              x: r.x + r.width / 2,
+              y: player === "ai" ? 60 : r.height - 90,
+            };
+          })();
         fxEl(
           `<b class="fx-dmg-txt small">−${-delta}</b>`,
-          r.x + r.width / 2,
-          r.y - 14,
+          p.x,
+          p.y - 14,
           "fx-dmg",
         );
       }

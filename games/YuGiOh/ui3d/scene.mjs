@@ -5,10 +5,11 @@
  */
 import * as THREE from "three";
 import { animate, cubicBezier } from "animejs";
-import { S } from "./store.mjs";
+import { S, hiddenForMe } from "./store.mjs";
 import { ATTR_EM, RACE_EM } from "./labels.mjs";
 import { fxEl } from "./domfx.mjs";
 import { sfx } from "./sfx.mjs";
+import { handPlacementZones } from "./actions.mjs";
 const $ = (id) => document.getElementById(id);
 
       /* ===================== Three.js 场景 ===================== */
@@ -68,6 +69,93 @@ const $ = (id) => document.getElementById(id);
       const arenaGlow = new THREE.PointLight(0xe6b24a, 14, 11, 2);
       arenaGlow.position.set(0, 2.6, 0);
       scene.add(arenaGlow);
+
+      /* ===================== 预设机位 + 响应式相机 =====================
+         四个预设视角平滑切换（右下角按钮）；水平拖拽=平移偏移；滚轮=缩放；双击空白=复位。
+         fov 按 aspect 自适应：竖屏/窄窗自动拉远，保证含堆位在内整桌可见（不再出画）。 */
+      const VIEWS = {
+        standard: { pos: [0, 5.6, 9.6], target: [0, -0.3, -0.8] }, // 默认俯视全场
+        low: { pos: [0, 2.4, 11.2], target: [0, 0.9, -1.6] }, // 低角对峙
+        me: { pos: [0, 7.6, 5.2], target: [0, 0, 2.6] }, // 俯瞰我方半场
+        ai: { pos: [0, 7.6, -5.2], target: [0, 0, -2.6] }, // 俯瞰对方半场
+      };
+      let curView = "standard";
+      let camOffsetX = 0; // 水平拖拽平移量
+      let camZoom = 1; // 滚轮缩放系数（绕 target 沿视线方向拉远/拉近）
+      const camLook = new THREE.Vector3(0, -0.3, -0.8); // 当前注视点（拖拽/过渡共用，统一 lookAt 消除不一致）
+      const camGoal = { px: 0, py: 5.6, pz: 9.6, tx: 0, ty: -0.3, tz: -0.8 };
+      function computeGoal() {
+        const v = VIEWS[curView];
+        camGoal.px = v.target[0] + (v.pos[0] - v.target[0]) * camZoom + camOffsetX;
+        camGoal.py = v.target[1] + (v.pos[1] - v.target[1]) * camZoom;
+        camGoal.pz = v.target[2] + (v.pos[2] - v.target[2]) * camZoom;
+        camGoal.tx = v.target[0] + camOffsetX;
+        camGoal.ty = v.target[1];
+        camGoal.tz = v.target[2];
+      }
+      function fitFov() {
+        // 水平视野需覆盖 ±viewHalfX（含堆位列）：由机位到 target 距离反推所需垂直 fov
+        const dist = Math.hypot(
+          camGoal.px - camGoal.tx,
+          camGoal.py - camGoal.ty,
+          camGoal.pz - camGoal.tz,
+        );
+        const hHalf = Math.atan2(LAYOUT.viewHalfX + Math.abs(camOffsetX), dist);
+        const vFov = 2 * Math.atan(Math.tan(hHalf) / camera.aspect) * (180 / Math.PI);
+        camera.fov = THREE.MathUtils.clamp(vFov, 46, 80);
+        camera.updateProjectionMatrix();
+      }
+      function applyGoal() {
+        camera.position.set(camGoal.px, camGoal.py, camGoal.pz);
+        camLook.set(camGoal.tx, camGoal.ty, camGoal.tz);
+        camera.lookAt(camLook);
+        fitFov();
+      }
+      let camTween = null;
+      function transitionCamera() {
+        computeGoal();
+        if (camTween) {
+          try { camTween.cancel(); } catch (e) {}
+        }
+        const from = {
+          px: camera.position.x, py: camera.position.y, pz: camera.position.z,
+          tx: camLook.x, ty: camLook.y, tz: camLook.z,
+        };
+        const st = { k: 0 };
+        camTween = animate(st, {
+          k: 1,
+          duration: 620,
+          ease: "inOutQuad",
+          onUpdate: () => {
+            const k = st.k;
+            camera.position.set(
+              from.px + (camGoal.px - from.px) * k,
+              from.py + (camGoal.py - from.py) * k,
+              from.pz + (camGoal.pz - from.pz) * k,
+            );
+            camLook.set(
+              from.tx + (camGoal.tx - from.tx) * k,
+              from.ty + (camGoal.ty - from.ty) * k,
+              from.tz + (camGoal.tz - from.tz) * k,
+            );
+            camera.lookAt(camLook);
+            fitFov();
+            hot(700);
+          },
+          onComplete: () => sync3D(), // 机位落定后重算场上卡牌后仰角（fieldPitch 绑定实时机位）
+        });
+      }
+      function setView(name) {
+        if (!VIEWS[name] || name === curView) return;
+        curView = name;
+        refreshViewSwitch();
+        transitionCamera();
+      }
+      function resetCamera() {
+        camOffsetX = 0;
+        camZoom = 1;
+        transitionCamera();
+      }
 
       /* ===================== 背景：夜幕穹顶 + 星尘（脱离雾影响） ===================== */
       let stars; // 渲染循环中缓慢漂移
@@ -205,6 +293,29 @@ const $ = (id) => document.getElementById(id);
         scene.add(mk(0.09, 14.05, -9.49, 0));
       }
 
+      /* ===================== 场地布局常量（单一来源） =====================
+         slotPos/handPos/pilePos 与桌面贴花绘制共用同一份坐标，改这里即可整体重排。
+         约定：+z 为玩家（me）半场，AI 半场对称取负。 */
+      const LAYOUT = {
+        slotGap: 1.9, // 怪兽/魔陷槽横向间距
+        monsterZ: 2.15, // 怪兽区行深
+        stZ: 3.4, // 魔陷区行深
+        fieldX: -5.6, // 场地魔法槽横坐标
+        handZ: 4.6, // 手牌行深
+        halfX: 5.6, // 半场框横向半宽
+        halfZ0: 1.35, // 半场框靠中线一边
+        halfZ1: 4.15, // 半场框靠玩家一边
+        // 堆位（玩家半场坐标，AI 对称取负）：右列=卡组/墓地，左列=额外/除外，
+        // 间距 1.4 > 牌盒深 0.86，杜绝相邻堆穿插与数量标签压盖
+        piles: {
+          deck: { x: 6.3, z: 4.35 },
+          grave: { x: 6.3, z: 2.95 },
+          extra: { x: -6.9, z: 4.35 },
+          banished: { x: -6.9, z: 2.95 },
+        },
+        pileRingR: 0.52, // 堆位环半径（贴花）
+        viewHalfX: 7.6, // 相机水平视野需覆盖的半宽（响应式适配用，含堆位列）
+      };
       /* ===================== 决斗盘贴花：一格一线按实际槽位坐标绘制 =====================
          单张覆盖全桌的透明贴花画布（100px = 1 世界单位），一次绘出：
          双方半场描边渐变、怪兽/魔陷/场地槽位金框、中央分隔光带、八个堆位环。 */
@@ -229,10 +340,10 @@ const $ = (id) => document.getElementById(id);
           ["ai", "230,84,84"],
         ]) {
           const s = who === "me" ? 1 : -1;
-          const x0 = px(-5.6),
-            x1 = px(5.6);
-          const zA = pz(s * 1.35),
-            zB = pz(s * 4.15);
+          const x0 = px(-LAYOUT.halfX),
+            x1 = px(LAYOUT.halfX);
+          const zA = pz(s * LAYOUT.halfZ0),
+            zB = pz(s * LAYOUT.halfZ1);
           const rx = Math.min(x0, x1),
             rw = Math.abs(x1 - x0);
           const rz = Math.min(zA, zB),
@@ -263,9 +374,9 @@ const $ = (id) => document.getElementById(id);
         roundRect(ctx, px(-6.3), pz(0) - 4, px(6.3) - px(-6.3), 8, 4);
         ctx.stroke();
         ctx.shadowBlur = 0;
-        // 槽位金框：怪兽行较亮，魔陷/场地稍收敛；防守横向与牌面同宽已在视觉上对齐
-        const fw = 1.26 * PX,
-          fh = 1.78 * PX;
+        // 槽位金框：怪兽行较亮，魔陷/场地稍收敛；方形槽（≈槽距），竖放/横放守备卡都居中容纳
+        const fw = LAYOUT.slotGap * PX * 0.94,
+          fh = LAYOUT.slotGap * PX * 0.94;
         const slotFrame = (x, z, bright) => {
           strokeGlow(bright ? "rgba(233,190,105,0.66)" : "rgba(233,190,105,0.45)", 10);
           ctx.lineWidth = 2.8;
@@ -275,26 +386,26 @@ const $ = (id) => document.getElementById(id);
         ctx.shadowBlur = 0;
         for (const s of [1, -1]) {
           for (let i = 0; i < 5; i++) {
-            slotFrame((i - 2) * 1.9, s * 2.15, true);
-            slotFrame((i - 2) * 1.9, s * 3.4, false);
+            slotFrame((i - 2) * LAYOUT.slotGap, s * LAYOUT.monsterZ, true);
+            slotFrame((i - 2) * LAYOUT.slotGap, s * LAYOUT.stZ, false);
           }
-          slotFrame(-5.6, s * 3.4, false);
-          // 八个堆位环：卡组/墓地/额外/除外占位标记
-          for (const base of [-5.6, -4.2, -2.8, -1.4]) {
+          slotFrame(LAYOUT.fieldX, s * LAYOUT.stZ, false);
+          // 堆位环：卡组/墓地/额外/除外占位标记（坐标与 pilePos 同源，双方各半场）
+          for (const q of Object.values(LAYOUT.piles)) {
             ctx.beginPath();
             ctx.strokeStyle = "rgba(200,170,110,0.2)";
             ctx.lineWidth = 2;
-            ctx.arc(px(8.2), pz((3.4 + base) * s), 0.52 * PX, 0, Math.PI * 2);
+            ctx.arc(px(s * q.x), pz(s * q.z), LAYOUT.pileRingR * PX, 0, Math.PI * 2);
             ctx.stroke();
           }
         }
         // 区域行带弱底色：怪兽带暖金 / 魔陷带淡紫（低饱和，不与卡面抢视觉）
         for (const s of [1, -1]) {
           ctx.fillStyle = "rgba(255,205,110,0.05)";
-          roundRect(ctx, px(-4.5), pz(s * 2.15) - fh / 2, px(4.5) - px(-4.5), fh, 14);
+          roundRect(ctx, px(-4.5), pz(s * LAYOUT.monsterZ) - fh / 2, px(4.5) - px(-4.5), fh, 14);
           ctx.fill();
           ctx.fillStyle = "rgba(190,160,255,0.045)";
-          roundRect(ctx, px(-4.5), pz(s * 3.4) - fh / 2, px(4.5) - px(-4.5), fh, 14);
+          roundRect(ctx, px(-4.5), pz(s * LAYOUT.stZ) - fh / 2, px(4.5) - px(-4.5), fh, 14);
           ctx.fill();
         }
         // 区域文字角标（竖排小字，新手可分辨分区用途；置于行侧空白，不与卡牌重叠）
@@ -309,18 +420,18 @@ const $ = (id) => document.getElementById(id);
           chars.forEach((ch, i) => ctx.fillText(ch, px(x), y0 + i * 32));
         };
         for (const s of [1, -1]) {
-          zoneLabel("怪兽区", -5.02, s * 2.15, "rgba(240,225,195,0.52)");
-          zoneLabel("魔陷区", 5.02, s * 3.4, "rgba(240,225,195,0.45)");
-          zoneLabel("场地", -6.72, s * 3.4, "rgba(240,225,195,0.4)");
-          // 手牌托板：半透明圆角带区分手牌区与场地
-          const padZ = s * 4.85;
+          zoneLabel("怪兽区", -5.02, s * LAYOUT.monsterZ, "rgba(240,225,195,0.52)");
+          zoneLabel("魔陷区", 5.02, s * LAYOUT.stZ, "rgba(240,225,195,0.45)");
+          zoneLabel("场地", -6.72, s * LAYOUT.stZ, "rgba(240,225,195,0.4)");
+          // 手牌托板：半透明圆角带区分手牌区与场地（右端收到半场框同宽，给堆位列让位）
+          const padZ = s * (LAYOUT.handZ + 0.25);
           const padCol = s === 1 ? "74,150,255" : "230,84,84";
           ctx.fillStyle = `rgba(${padCol},0.055)`;
-          roundRect(ctx, px(-6.4), pz(padZ) - 62, px(6.4) - px(-6.4), 124, 30);
+          roundRect(ctx, px(-LAYOUT.halfX), pz(padZ) - 62, px(LAYOUT.halfX) - px(-LAYOUT.halfX), 124, 30);
           ctx.fill();
           ctx.strokeStyle = `rgba(${padCol},0.22)`;
           ctx.lineWidth = 2;
-          roundRect(ctx, px(-6.4), pz(padZ) - 62, px(6.4) - px(-6.4), 124, 30);
+          roundRect(ctx, px(-LAYOUT.halfX), pz(padZ) - 62, px(LAYOUT.halfX) - px(-LAYOUT.halfX), 124, 30);
           ctx.stroke();
         }
         const decalTex = new THREE.CanvasTexture(cv);
@@ -820,53 +931,53 @@ const $ = (id) => document.getElementById(id);
       // 场上卡牌后仰角：按排深计算俯视角度的 65% 补偿（离玩家越近俯视越陡、后仰越大）
       function fieldPitch(who, kind) {
         const z = Math.abs(slotPos(who, kind, 0).z);
-        const dy = 5.6 - (CARD_H / 2) * FIELD_SCALE; // 相机高度 - 卡牌中心高度
-        return -Math.atan(dy / (9.6 - z)) * 0.65;
+        // 用当前机位实时计算（拖拽/切机位后由 sync3D 重算），不再绑死初始相机常量
+        const dy = camera.position.y - (CARD_H / 2) * FIELD_SCALE;
+        return -Math.atan(dy / Math.max(1, Math.abs(camera.position.z) - z)) * 0.65;
       }
       function slotPos(who, kind, idx) {
-        const S = 1.9;
         let x, z;
         if (kind === "monster") {
-          x = (idx - 2) * S;
-          z = 2.15;
+          x = (idx - 2) * LAYOUT.slotGap;
+          z = LAYOUT.monsterZ;
         } else if (kind === "field") {
-          x = -5.6;
-          z = 3.4;
+          x = LAYOUT.fieldX;
+          z = LAYOUT.stZ;
         } else {
-          x = (idx - 2) * S;
-          z = 3.4;
+          x = (idx - 2) * LAYOUT.slotGap;
+          z = LAYOUT.stZ;
         }
         return new THREE.Vector3(x, CARD_H / 2, who === "me" ? z : -z);
       }
       function handPos(i, n, who) {
         const spread = Math.min(n * 0.85, 5.2);
         const x = (i - (n - 1) / 2) * (spread / Math.max(n - 1, 1));
-        const z = who === "me" ? 4.6 : -4.6;
+        const z = (who === "me" ? 1 : -1) * LAYOUT.handZ;
         return new THREE.Vector3(x, (CARD_H / 2) * HAND_SCALE, z);
       }
       function pilePos(who, kind) {
-        const base =
-          { deck: -5.6, grave: -4.2, extra: -2.8, banished: -1.4 }[kind] || 0;
-        const z = (who === "me" ? 1 : -1) * (3.4 + base);
-        return new THREE.Vector3(8.2, 0.14, z);
+        // 堆位坐标来自 LAYOUT.piles（与桌面贴花的堆位环同源）；各自半场内、互不穿插
+        const q = LAYOUT.piles[kind] || { x: 8.2, z: 0 };
+        const s = who === "me" ? 1 : -1;
+        return new THREE.Vector3(s * q.x, 0.14, s * q.z);
       }
-      /* 悬停光环：与决斗盘贴花同语言的柔光金框，跟随指针下的场上卡牌 */
+      /* 悬停光环：与决斗盘贴花同语言的柔光金框，跟随指针下的场上卡牌（方形，兼容横放卡） */
       const hoverRing = (() => {
         const cv = document.createElement("canvas");
-        cv.width = 128;
+        cv.width = 160;
         cv.height = 160;
         const ctx = cv.getContext("2d");
         strokeGlowStyle(ctx, "rgba(255,216,132,0.95)", 16);
         ctx.lineWidth = 6;
-        roundRect(ctx, 10, 10, 108, 140, 14);
+        roundRect(ctx, 12, 12, 136, 136, 16);
         ctx.stroke();
         const tex = new THREE.CanvasTexture(cv);
         tex.colorSpace = THREE.SRGBColorSpace;
+        // 取竖放/横放卡的外接尺寸 + 余量：守备横卡也完整包在光环内
+        const ringSide =
+          Math.max(CARD_H, CARD_W) * FIELD_SCALE + 0.22;
         const m = new THREE.Mesh(
-          new THREE.PlaneGeometry(
-            CARD_W * FIELD_SCALE + 0.22,
-            CARD_H * FIELD_SCALE + 0.22,
-          ),
+          new THREE.PlaneGeometry(ringSide, ringSide),
           new THREE.MeshBasicMaterial({
             map: tex,
             transparent: true,
@@ -887,26 +998,29 @@ const $ = (id) => document.getElementById(id);
       }
 
       /* 合法放置区高亮：手牌召唤/覆盖时点亮己方可用的怪兽/魔陷格（hud 经此桥接控制）。
-         绿色发光框 + 半透明填充，闪烁在渲染循环里按时间驱动。 */
+         绿色发光框 + 半透明填充，脉冲在渲染循环里按时间驱动；格子可点击（放置模式选位）。 */
       const zoneGlows = new Map(); // "monster:3" -> Mesh
       let zoneGlowActive = false;
       function zoneGlowMesh(key) {
         let m = zoneGlows.get(key);
         if (m) return m;
+        const [kind, idxStr] = key.split(":");
         const cv = document.createElement("canvas");
-        cv.width = 128;
+        cv.width = 178;
         cv.height = 178;
         const c2 = cv.getContext("2d");
         strokeGlowStyle(c2, "rgba(110,225,160,0.95)", 18);
         c2.lineWidth = 7;
         c2.fillStyle = "rgba(110,225,160,0.16)";
-        roundRect(c2, 8, 8, 112, 162, 14);
+        roundRect(c2, 10, 10, 158, 158, 16);
         c2.fill();
         c2.stroke();
         const tex = new THREE.CanvasTexture(cv);
         tex.colorSpace = THREE.SRGBColorSpace;
+        // 方形格子（≈槽距）：竖放/横放卡都居中容纳，与贴花槽框对齐
+        const cell = LAYOUT.slotGap * 0.94;
         m = new THREE.Mesh(
-          new THREE.PlaneGeometry(1.42, 1.96),
+          new THREE.PlaneGeometry(cell, cell),
           new THREE.MeshBasicMaterial({
             map: tex,
             transparent: true,
@@ -917,6 +1031,7 @@ const $ = (id) => document.getElementById(id);
         m.rotation.x = -Math.PI / 2;
         m.visible = false;
         m.renderOrder = 2;
+        m.userData.zone = { who: "me", kind, idx: Number(idxStr) }; // 点击拾取用
         scene.add(m);
         zoneGlows.set(key, m);
         return m;
@@ -1178,6 +1293,10 @@ const $ = (id) => document.getElementById(id);
         if (g.userData.dying) {
           g.userData.dying = false;
           g.visible = true;
+          // 离场飞散动画期间同卡回场：取消旧 tween，交还渲染循环的阻尼接管
+          // （否则 onUpdate 会继续把卡拉向天空，出现"先飞走再飞回"）
+          const t = tween3DMap.get(g);
+          if (t && !t.done) t.cancel();
         }
       }
       function leaveCard3D(g, color) {
@@ -1261,6 +1380,166 @@ const $ = (id) => document.getElementById(id);
               count;
         }
       }
+      /* ===================== 3D LP 屏（嵌入式血条） =====================
+         各半场后侧立一块 CanvasTexture 显示屏：决斗者名 + LP 数字（滚动补间）+ 血条。
+         扣血红闪、行动方浮动强调；projectLp3D 供伤害浮字/特效定位。两屏均面向玩家侧可读。 */
+      const lpBoards = new Map(); // who -> { mesh, cv, ctx, tex, baseY, flashUntil, anim }
+      let lpActive = null; // 当前行动方（浮动强调）
+      const lpDisplay = { me: 8000, ai: 8000 }; // 屏上显示值（补间中间态）
+      function makeLpBoard(who) {
+        const cv = document.createElement("canvas");
+        cv.width = 640;
+        cv.height = 176;
+        const ctx = cv.getContext("2d");
+        const tex = new THREE.CanvasTexture(cv);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        const front = new THREE.MeshBasicMaterial({ map: tex });
+        const dark = new THREE.MeshBasicMaterial({ color: 0x1a2233 });
+        const mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(4.3, 1.18, 0.08),
+          [dark, dark, dark, dark, front, dark],
+        );
+        const my = who === "me";
+        mesh.position.set(0, my ? 1.02 : 0.72, my ? 6.05 : -6.05);
+        // 两屏都朝玩家镜头（+z）；玩家屏更立起且抬高，避免被底部回合条遮挡
+        mesh.rotation.x = my ? -0.42 : -0.34;
+        mesh.castShadow = true;
+        scene.add(mesh);
+        const st = { mesh, cv, ctx, tex, baseY: my ? 1.02 : 0.72, flashUntil: 0, anim: null };
+        lpBoards.set(who, st);
+        drawLpBoard(who);
+        return st;
+      }
+      function drawLpBoard(who) {
+        const st = lpBoards.get(who);
+        if (!st) return;
+        const { ctx, cv } = st;
+        const W = cv.width,
+          H = cv.height;
+        const val = Math.round(lpDisplay[who]);
+        const pct = Math.max(
+          0,
+          Math.min(1, lpDisplay[who] / (S.startLP || 8000)),
+        );
+        const my = who === "me";
+        const flashing = performance.now() < st.flashUntil;
+        const active = lpActive === who;
+        ctx.clearRect(0, 0, W, H);
+        // 底板 + 阵营描边（行动方更亮）
+        const edge = my
+          ? `rgba(120,190,255,${active ? 0.95 : 0.6})`
+          : `rgba(255,122,110,${active ? 0.95 : 0.6})`;
+        strokeGlowStyle(ctx, edge, active ? 18 : 10);
+        ctx.lineWidth = 4;
+        roundRect(ctx, 8, 8, W - 16, H - 16, 20);
+        ctx.fillStyle = "rgba(13,17,28,0.95)";
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        // 名字 + 行动方指示点
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+        ctx.font = "700 36px 'PingFang SC','Microsoft YaHei',sans-serif";
+        ctx.fillStyle = my ? "#a9cdf7" : "#f3b3ac";
+        ctx.fillText(my ? "玩家" : "AI", 34, 64);
+        if (active) {
+          ctx.beginPath();
+          ctx.fillStyle = my ? "#7cb8ff" : "#ff8d84";
+          ctx.arc(126, 52, 9, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // LP 数字（扣血红闪）
+        ctx.textAlign = "right";
+        ctx.font = "800 54px 'Bahnschrift','DIN Alternate','Segoe UI',sans-serif";
+        ctx.fillStyle = flashing ? "#ff6a5e" : my ? "#cfe6ff" : "#ffe0db";
+        ctx.fillText(String(val), W - 34, 70);
+        // 血条
+        const bx = 34,
+          by = H - 52,
+          bw = W - 68,
+          bh = 22;
+        roundRect(ctx, bx, by, bw, bh, 11);
+        ctx.fillStyle = "rgba(255,255,255,0.09)";
+        ctx.fill();
+        if (pct > 0.002) {
+          roundRect(ctx, bx, by, Math.max(bw * pct, 14), bh, 11);
+          const g = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+          if (my) {
+            g.addColorStop(0, "#4a96ff");
+            g.addColorStop(1, "#7cc4ff");
+          } else {
+            g.addColorStop(0, "#e6544d");
+            g.addColorStop(1, "#ff9a8f");
+          }
+          ctx.fillStyle = flashing ? "#ff5f52" : g;
+          ctx.fill();
+        }
+        ctx.textAlign = "left";
+        ctx.font = "700 20px 'PingFang SC','Microsoft YaHei',sans-serif";
+        ctx.fillStyle = "rgba(230,235,245,0.55)";
+        ctx.fillText("LP", bx + 2, by - 8);
+        st.tex.needsUpdate = true;
+      }
+      function updateLP3D(who, val) {
+        if (!lpBoards.has(who)) makeLpBoard(who);
+        const st = lpBoards.get(who);
+        if (st.anim) {
+          try { st.anim.cancel(); } catch (e) {}
+        }
+        const from = lpDisplay[who];
+        if (val < from) st.flashUntil = performance.now() + 520;
+        if (val === from) {
+          drawLpBoard(who);
+          return;
+        }
+        // 数字滚动补间（与全局 anime 动画语言一致，不再一步跳变）
+        const proxy = { v: from };
+        st.anim = animate(proxy, {
+          v: val,
+          duration: 560,
+          ease: "outCubic",
+          onUpdate: () => {
+            lpDisplay[who] = proxy.v;
+            drawLpBoard(who);
+          },
+          onComplete: () => {
+            lpDisplay[who] = val;
+            drawLpBoard(who);
+          },
+        });
+        hot(700);
+      }
+      function setLpTurn3D(who) {
+        if (lpActive === who) return;
+        lpActive = who;
+        drawLpBoard("me");
+        drawLpBoard("ai");
+      }
+      function resetLp3D() {
+        lpDisplay.me = S.startLP || 8000;
+        lpDisplay.ai = S.startLP || 8000;
+        lpActive = null;
+        for (const [who, st] of lpBoards) {
+          if (st.anim) {
+            try { st.anim.cancel(); } catch (e) {}
+            st.anim = null;
+          }
+          st.flashUntil = 0;
+          drawLpBoard(who);
+        }
+      }
+      function projectLp3D(who) {
+        const st = lpBoards.get(who);
+        if (st) return projectMesh(st.mesh);
+        return {
+          x: window.innerWidth / 2,
+          y: who === "ai" ? 60 : window.innerHeight - 80,
+        };
+      }
+      makeLpBoard("me");
+      makeLpBoard("ai");
+
       /* ===================== 动画系统（anime.js 统一驱动 3D + DOM） ===================== */
       // 说明：3D 对象用“代理状态对象”接入 anime（anime 管时间轴/缓动，onUpdate 写回 three 属性），
       // 避免 v4.5 three 适配器对数值初始值的解析缺陷，同时天然支持贝塞尔/弹簧缓动。
@@ -1521,10 +1800,77 @@ const $ = (id) => document.getElementById(id);
       const pointer = new THREE.Vector2();
       let hoveredMesh = null;
       let downPos = null;
+      // 输入判定阈值集中定义：位移超过 CLICK_SLOP 视为拖拽（不触发点击）；
+      // 超过 DRAG_SLOP 才开始视角平移（容忍轻微手抖）；手牌拖拽召唤阈值更大以防误拖
+      const CLICK_SLOP = 8;
+      const DRAG_SLOP = 8;
+      const HAND_DRAG_SLOP = 14;
+      /* 手牌拖拽召唤：按住我方手牌拖到发光格直接召唤/覆盖（点击菜单仍是完整操作入口） */
+      let handDrag = null; // { slot, mesh, zones, active, magnetKey }
+      const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.7); // 悬浮高度 y=0.7
+      const dragHit = new THREE.Vector3();
+      function dragHandCard(e) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        if (raycaster.ray.intersectPlane(dragPlane, dragHit)) {
+          // 卡牌跟随指针（写 targetPos，渲染循环阻尼平滑趋近）
+          handDrag.mesh.userData.targetPos.set(
+            THREE.MathUtils.clamp(dragHit.x, -5.2, 5.2),
+            0.7,
+            THREE.MathUtils.clamp(dragHit.z, -1.4, 5.0),
+          );
+        }
+        // 磁吸：距指针最近的可用格（该格高亮常亮，提示落点）
+        let best = null,
+          bestD = 1e9;
+        for (const idx of handDrag.zones.idxs) {
+          const p = slotPos("me", handDrag.zones.kind, idx);
+          const d = p.distanceToSquared(dragHit);
+          if (d < bestD) {
+            bestD = d;
+            best = idx;
+          }
+        }
+        handDrag.magnetKey = best != null ? handDrag.zones.kind + ":" + best : null;
+      }
+      function dropHandCard(e) {
+        const hd = handDrag;
+        hd.mesh.userData.hover = false; // 复用 hover 放大效果，落手关闭
+        setZoneHighlight3D(null);
+        hot(600);
+        const g = pick(e);
+        const z = g && g.userData.zone;
+        if (
+          z &&
+          z.who === "me" &&
+          hd.zones &&
+          z.kind === hd.zones.kind &&
+          hd.zones.idxs.includes(z.idx)
+        ) {
+          const card = hd.mesh.userData.card;
+          if (hd.zones.kind === "monster") {
+            if (card.type === "monster" && (card.level || 0) >= 5) {
+              // 高星怪兽：转祭品模式（经 main 注入的桥接调用 hud.startTribute）
+              if (S.dragBridge) S.dragBridge.startTribute(hd.slot.idx);
+              else sync3D();
+              return;
+            }
+            S.duel.normalSummon(hd.slot.idx, z.idx, "atk");
+          } else {
+            S.duel.setSpellTrap(hd.slot.idx, z.idx);
+          }
+        } else {
+          sync3D(); // 未落在可用格：弹回手牌位
+        }
+      }
       const pickables = () =>
-        [...cardMeshes.values(), ...pileMeshes.values()].filter(
-          (g) => g.visible,
-        );
+        [
+          ...cardMeshes.values(),
+          ...pileMeshes.values(),
+          ...zoneGlows.values(), // 放置模式的发光格可点击选位
+        ].filter((g) => g.visible);
       function pick(e) {
         const rect = renderer.domElement.getBoundingClientRect();
         pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -1533,7 +1879,8 @@ const $ = (id) => document.getElementById(id);
         const hits = raycaster.intersectObjects(pickables(), true);
         if (!hits.length) return null;
         let g = hits[0].object;
-        while (g && !g.userData.slot && !g.userData.key) g = g.parent;
+        while (g && !g.userData.slot && !g.userData.key && !g.userData.zone)
+          g = g.parent;
         return g || null;
       }
       /* 指针事件统一处理：悬停拾取 + 提示文案（仅变化时写 DOM）+ 水平拖拽视角。
@@ -1550,19 +1897,54 @@ const $ = (id) => document.getElementById(id);
         hot(600);
         downPos = { x: e.clientX, y: e.clientY };
         dragStart = { x: e.clientX };
+        // 我方手牌按下：预判可拖性（我的主阶段 + 有合法放置区），供拖拽召唤
+        handDrag = null;
+        if (e.button === 0 || e.pointerType === "touch") {
+          const g = pick(e);
+          const sl = g && g.userData.slot;
+          if (g && sl && sl.kind === "hand" && sl.who === "me") {
+            const s = S.duel && S.duel.state;
+            const ok =
+              s &&
+              s.turnPlayer === "me" &&
+              !s.pending &&
+              !s.resolving &&
+              (s.phase === "main1" || s.phase === "main2") &&
+              !S.mode &&
+              !S.menuOpen;
+            const zones = ok ? handPlacementZones(S.duel, g.userData.card) : null;
+            handDrag = { slot: sl, mesh: g, zones, active: false, magnetKey: null };
+          }
+        }
       });
       renderer.domElement.addEventListener("pointermove", (e) => {
         hot(500); // 悬停光环/抬升/拖拽视角期间保持渲染
-        // 视角水平拖拽
+        // 手牌拖拽召唤：超过阈值进入拖拽态，卡牌跟随指针、可用格点亮
+        if (handDrag && e.buttons === 1) {
+          if (!handDrag.active && downPos) {
+            const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+            if (moved >= HAND_DRAG_SLOP && handDrag.zones) {
+              handDrag.active = true;
+              handDrag.mesh.userData.hover = true; // 复用 hover 放大，拖拽中读卡更清楚
+              setZoneHighlight3D(handDrag.zones);
+              sfx("draw");
+            }
+          }
+          if (handDrag.active) {
+            dragHandCard(e);
+            return; // 拖卡期间：不做视角平移与悬停拾取
+          }
+        }
+        // 视角水平拖拽：累加平移偏移（机位系统统一计算，可双击空白复位）
         if (dragStart && e.buttons === 1) {
           const dx = e.clientX - dragStart.x;
-          if (Math.abs(dx) > 8) {
-            camera.position.x = THREE.MathUtils.clamp(
-              camera.position.x - dx * 0.008,
-              -2.5,
-              2.5,
+          if (Math.abs(dx) > DRAG_SLOP) {
+            camOffsetX = THREE.MathUtils.clamp(
+              camOffsetX - dx * 0.01 * camZoom,
+              -2.8,
+              2.8,
             );
-            camera.lookAt(0, -0.4, 0);
+            applyGoal();
             dragStart = { x: e.clientX };
           }
         }
@@ -1580,14 +1962,22 @@ const $ = (id) => document.getElementById(id);
           }
         }
         renderer.domElement.style.cursor =
-          g && (g.userData.slot || g.userData.key) ? "pointer" : "default";
+          g && (g.userData.slot || g.userData.key || g.userData.zone)
+            ? "pointer"
+            : "default";
         setHint(
           g
             ? g.userData.key
               ? "堆:" + g.userData.key
-              : g.userData.card
-                ? "卡:" + g.userData.card.name
-                : "?"
+              : g.userData.zone && S.mode === "place"
+                ? "点击放置到此处"
+                : hiddenForMe(g.userData.card, g.userData.slot)
+                  ? g.userData.slot.kind === "hand"
+                    ? "对方的手牌"
+                    : "里侧卡牌"
+                  : g.userData.card
+                    ? "卡:" + g.userData.card.name
+                    : "?"
             : "点击卡牌查看/操作",
         );
         // 右侧卡牌预览浮层（hud 提供，经 store 桥接避免循环依赖）
@@ -1598,9 +1988,71 @@ const $ = (id) => document.getElementById(id);
           else bridge.hide();
         }
       });
-      renderer.domElement.addEventListener("pointerup", () => {
+      renderer.domElement.addEventListener("pointerup", (e) => {
         dragStart = null;
+        if (handDrag && handDrag.active) dropHandCard(e);
+        handDrag = null;
       });
+      // 指针离开画布/被系统手势打断（触屏滚动等）：清理拖拽与悬停态，避免状态残留
+      const clearPointerState = () => {
+        dragStart = null;
+        downPos = null;
+        if (handDrag) {
+          if (handDrag.active) {
+            handDrag.mesh.userData.hover = false;
+            sync3D(); // 拖拽被打断：卡弹回手牌位
+            setZoneHighlight3D(null);
+          }
+          handDrag = null;
+        }
+        if (hoveredMesh) {
+          hoveredMesh.userData.hover = false;
+          hoveredMesh = null;
+        }
+        const bridge = S.previewBridge;
+        if (bridge) bridge.hide();
+        hot(500);
+      };
+      renderer.domElement.addEventListener("pointercancel", clearPointerState);
+      renderer.domElement.addEventListener("pointerleave", clearPointerState);
+      // 滚轮缩放（沿机位视线拉远/拉近）；双击空白复位视角与缩放
+      renderer.domElement.addEventListener(
+        "wheel",
+        (e) => {
+          e.preventDefault();
+          camZoom = THREE.MathUtils.clamp(camZoom + e.deltaY * 0.0012, 0.72, 1.45);
+          transitionCamera();
+        },
+        { passive: false },
+      );
+      renderer.domElement.addEventListener("dblclick", (e) => {
+        if (!pick(e)) resetCamera();
+      });
+      /* 机位切换按钮组（右下角悬浮，激活态高亮） */
+      const VIEW_LABELS = {
+        standard: "◉ 标准",
+        low: "⚔ 对峙",
+        me: "▣ 我方",
+        ai: "▣ 对方",
+      };
+      const viewSwitch = document.createElement("div");
+      viewSwitch.className = "view-switch";
+      for (const name of Object.keys(VIEWS)) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.title = VIEW_LABELS[name];
+        b.textContent = VIEW_LABELS[name];
+        b.dataset.view = name;
+        b.onclick = () => setView(name);
+        viewSwitch.appendChild(b);
+      }
+      function refreshViewSwitch() {
+        viewSwitch.querySelectorAll("button").forEach((b) =>
+          b.classList.toggle("on", b.dataset.view === curView),
+        );
+      }
+      stage.appendChild(viewSwitch);
+      refreshViewSwitch();
       // 统一用 click 事件处理拾取（pointer/mouse 派发均兼容）
       /* ===================== 渲染循环 ===================== */
       let viewW = 1,
@@ -1615,7 +2067,7 @@ const $ = (id) => document.getElementById(id);
         if (!w || !h) return;
         renderer.setSize(w, h);
         camera.aspect = w / h;
-        camera.updateProjectionMatrix();
+        applyGoal(); // aspect 变化后按预设机位重算 fov/位置（竖屏自动拉远，桌宽含堆位不出画）
         viewW = w;
         viewH = h;
       }
@@ -1643,7 +2095,10 @@ const $ = (id) => document.getElementById(id);
       function renderLoop() {
         __lastFrame = performance.now();
         // 空闲早退：无动画、无交互且卡牌全部落位时跳过场景更新与渲染（最后一帧保留在画布上）
-        if (performance.now() > __hotUntil && !tween3DMap.size && !__anyUnsettled()) return;
+        // （放置格脉冲/攻击目标呼吸/行动方 LP 屏浮动等常驻特效期间不早退）
+        const modeFx = zoneGlowActive || S.mode === "attack" || !!lpActive;
+        if (performance.now() > __hotUntil && !tween3DMap.size && !__anyUnsettled() && !modeFx)
+          return;
         window.__renderCount = (window.__renderCount || 0) + 1; // 实际渲染计数（调试/性能排查用）
         camera.updateMatrixWorld(true);
         // 平滑趋近目标位（tween3D 接管中的卡跳过，避免阻尼覆盖动画）
@@ -1695,6 +2150,29 @@ const $ = (id) => document.getElementById(id);
           g.rotation.z += (tr.z - g.rotation.z) * damp;
           g.rotation.x += (tr.x - g.rotation.x) * damp;
           g.rotation.y += (tr.y - g.rotation.y) * damp;
+        }
+        // 放置模式/拖拽中：可用格绿色脉冲呼吸（磁吸格常亮提示落点）
+        if (zoneGlowActive) {
+          const k = 0.5 + 0.5 * Math.sin(performance.now() * 0.004);
+          for (const [key, m] of zoneGlows)
+            if (m.visible)
+              m.material.opacity =
+                handDrag && handDrag.magnetKey === key ? 1 : 0.55 + 0.45 * k;
+        }
+        // 攻击模式：可选目标（对方怪兽）红色明暗呼吸，比静态染色更醒目
+        if (S.mode === "attack") {
+          const k = 0.5 + 0.5 * Math.sin(performance.now() * 0.005);
+          for (const [, g] of cardMeshes) {
+            const sl = g.userData.slot;
+            if (sl && sl.who === "ai" && sl.kind === "monster" && g.userData.frontMat)
+              g.userData.frontMat.color.setRGB(1, 0.42 + 0.22 * k, 0.36 + 0.2 * k);
+          }
+        }
+        // LP 屏：行动方轻微浮动强调
+        if (lpActive) {
+          const dy = 0.045 + 0.045 * Math.sin(performance.now() * 0.0035);
+          for (const [who, st] of lpBoards)
+            st.mesh.position.y = st.baseY + (who === lpActive ? dy : 0);
         }
         // 堆标签投影（取整定位，避免亚像素抖动；文案仅变化时更新）
         for (const [key, g] of pileMeshes) {
@@ -1800,9 +2278,11 @@ const $ = (id) => document.getElementById(id);
         if (!ag) return;
         const fromPos = ag.position.clone();
         const tg = target ? cardMeshes.get(target.uid) : null;
+        // 突进方向按攻击者归属取符号：me 朝 -z（AI 半场）、ai 朝 +z（玩家半场）
+        const toward = attacker.controller === "ai" ? 1 : -1;
         const toPos = tg
-          ? tg.position.clone().add(new THREE.Vector3(0, 0, -0.55))
-          : fromPos.clone().add(new THREE.Vector3(0, 0.4, -2.2));
+          ? tg.position.clone().add(new THREE.Vector3(0, 0, -toward * 0.55)) // 停在目标靠攻击方一侧
+          : fromPos.clone().add(new THREE.Vector3(0, 0.4, toward * 2.2)); // 直接攻击：冲向对方半场
         sfx("attack");
         // 1) 突进（贝塞尔急冲）→ 2) 命中：冲击波 + 闪光 + 目标受击后退 → 3) 弹性回弹
         tween3D(ag, { pos: toPos }, 150, "attack", () => {
@@ -1811,7 +2291,7 @@ const $ = (id) => document.getElementById(id);
           if (tg) {
             flashMesh3D(tg);
             const base = tg.position.clone();
-            const nudge = base.clone().add(new THREE.Vector3(0, 0, 0.22));
+            const nudge = base.clone().add(new THREE.Vector3(0, 0, toward * 0.22)); // 被撞向远离攻击者的方向退
             tween3D(tg, { pos: nudge }, 90, "easeIn", () => {
               tween3D(tg, { pos: base }, 240, "easeOut", null);
             });
@@ -1822,18 +2302,16 @@ const $ = (id) => document.getElementById(id);
       }
       function fxImpact3D(ev) {
         const dmg = ev.damage || 0;
+        // ev.damageTo 是受击方归属（"me"/"ai"）：受击的是该方场上的卡——
+        // target.controller 一致取目标卡，否则是攻击者被反伤
         const posCard = ev.direct
           ? null
-          : ev.damageTo === "def"
+          : ev.target && ev.target.controller === ev.damageTo
             ? ev.target
             : ev.attacker;
         let p = posCard ? projectCard3D(posCard.uid) : null;
-        if (!p) {
-          const who = ev.damageTo || "ai";
-          const bar = $(`lp-${who}-bar`);
-          const r = bar.getBoundingClientRect();
-          p = { x: r.x + r.width / 2, y: r.y };
-        }
+        // 受击卡不在场上（直接攻击等）：定位到受击方 3D LP 屏
+        if (!p) p = projectLp3D(ev.damageTo || "ai");
         if (ev.direct)
           fxEl(
             `<div class="fx-burst-txt">💥 直接攻击！</div>`,
@@ -1877,7 +2355,7 @@ const $ = (id) => document.getElementById(id);
         const moved = downPos
           ? Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y)
           : 0;
-        if (moved > 8) return;
+        if (moved > CLICK_SLOP) return;
         const g = pick(e);
         if (clickHandler) clickHandler(g);
       });
@@ -1885,6 +2363,7 @@ const $ = (id) => document.getElementById(id);
       /* 重开局清理：清空 3D 场景并释放 GPU 资源（几何体/材质/纹理），避免显存累积 */
       function resetScene3D() {
         setZoneHighlight3D(null);
+        resetLp3D(); // LP 屏数值回满（屏体跨局复用）
         for (const [, g] of cardMeshes) {
           scene.remove(g);
           disposeCardGroup(g);
@@ -1907,4 +2386,4 @@ const $ = (id) => document.getElementById(id);
       }
 
 export function debugPick(x, y) { return pick({ clientX: x, clientY: y }); }
-export { sync3D, resetScene3D, setClickHandler, projectMesh, projectCard3D, fxGlow3D, fxSummon3D, fxAttack3D, fxImpact3D, fxBurst3D, tween3D, shakeBoard, cardMeshes, chipEls, artUrl, setZoneHighlight3D };
+export { sync3D, resetScene3D, setClickHandler, projectMesh, projectCard3D, projectLp3D, updateLP3D, setLpTurn3D, fxGlow3D, fxSummon3D, fxAttack3D, fxImpact3D, fxBurst3D, tween3D, shakeBoard, cardMeshes, chipEls, artUrl, setZoneHighlight3D };

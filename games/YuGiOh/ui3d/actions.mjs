@@ -7,33 +7,32 @@
         const acts = [];
         const myTurn = s.turnPlayer === "me" && !s.pending && !s.resolving;
         const inMain = s.phase === "main1" || s.phase === "main2";
-        if (info && info.kind === "hand" && myTurn && inMain) {
+        // 归属校验：只能操作自己的手牌（防止点击 AI 手牌触发错位召唤）
+        if (info && info.kind === "hand" && info.who === "me" && myTurn && inMain) {
           const handIdx = info.idx;
           if (card.type === "monster") {
             if (card.level < 5) {
+              // 召唤/覆盖进入放置模式：玩家点选具体怪兽区格（引擎 normalSummon/setMonster 均支持 zone 参数）
               acts.push({
                 icon: ctx.ic.sword,
                 label: "通常召唤·攻击表示",
                 primary: true,
                 fn: () => {
-                  ctx.duel.normalSummon(handIdx, null, "atk");
-                  ctx.closeMenu();
+                  ctx.startPlace({ handIdx, kind: "monster", position: "atk" });
                 },
               });
               acts.push({
                 icon: ctx.ic.shield,
                 label: "通常召唤·守备表示",
                 fn: () => {
-                  ctx.duel.normalSummon(handIdx, null, "def");
-                  ctx.closeMenu();
+                  ctx.startPlace({ handIdx, kind: "monster", position: "def" });
                 },
               });
               acts.push({
                 icon: ctx.ic.setCard,
                 label: "覆盖（里侧守备）",
                 fn: () => {
-                  ctx.duel.setMonster(handIdx, null);
-                  ctx.closeMenu();
+                  ctx.startPlace({ handIdx, kind: "monster", position: "set" });
                 },
               });
             } else {
@@ -72,8 +71,7 @@
               label: "覆盖",
               primary: !canFire,
               fn: () => {
-                ctx.duel.setSpellTrap(handIdx);
-                ctx.closeMenu();
+                ctx.startPlace({ handIdx, kind: "st", position: "set" });
               },
             });
           } else if (card.type === "trap") {
@@ -82,8 +80,7 @@
               label: "覆盖",
               primary: true,
               fn: () => {
-                ctx.duel.setSpellTrap(handIdx);
-                ctx.closeMenu();
+                ctx.startPlace({ handIdx, kind: "st", position: "set" });
               },
             });
           }

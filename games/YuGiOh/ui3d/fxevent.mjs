@@ -7,7 +7,7 @@ import { S, PACE_SCALE } from "./store.mjs";
 import { IC } from "./labels.mjs";
 import { fxTurnBanner, fxPhaseBanner, fxLpFloat } from "./domfx.mjs";
 import { sfx } from "./sfx.mjs";
-import { fxGlow3D, fxSummon3D, fxAttack3D, fxImpact3D, fxBurst3D, tween3D, shakeBoard, cardMeshes } from "./scene.mjs";
+import { fxGlow3D, fxSummon3D, fxAttack3D, fxImpact3D, fxBurst3D, tween3D, shakeBoard, cardMeshes, projectLp3D } from "./scene.mjs";
 const $ = (id) => document.getElementById(id);
 
       /* ===================== 事件通知队列（串行） =====================
@@ -216,7 +216,8 @@ const $ = (id) => document.getElementById(id);
               "info",
             );
           case "lp_change":
-            fxLpFloat(ev.player, ev.delta);
+            // 效果伤害浮字（战斗伤害走 damage_calc 的 fxImpact3D 大字，不在此重复）
+            fxLpFloat(ev.player, ev.delta, projectLp3D(ev.player));
             if (ev.delta < 0) shakeBoard();
             break;
         }

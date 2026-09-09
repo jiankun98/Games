@@ -9,7 +9,7 @@ import { S, PACE_PRESETS, saveOppMode } from "./store.mjs";
 import { IC } from "./labels.mjs";
 import { sfx, toggleSfx } from "./sfx.mjs";
 import { sync3D, resetScene3D, setClickHandler, projectCard3D, debugPick, chipEls as sceneChipEls, cardMeshes as sceneCardMeshes } from "./scene.mjs";
-import { render, closeMenu, exitMode, openDeckSelect, openListModal, openMenu, toggleTribute, pushLog, toast, showHelp, resetHud } from "./hud.mjs";
+import { render, closeMenu, exitMode, openDeckSelect, openListModal, openMenu, toggleTribute, pushLog, toast, showHelp, resetHud, startTribute } from "./hud.mjs";
 import { fxEvent } from "./fxevent.mjs";
 const $ = (id) => document.getElementById(id);
 
@@ -28,6 +28,7 @@ function ensureLlmPlayer() {
 setClickHandler((g) => {
   if (!g) {
     if (S.menuOpen) closeMenu();
+    else if (S.mode) exitMode(); // 点空地退出攻击/祭品/放置模式（与 Esc 等效）
     return;
   }
   if (g.userData.key) {
@@ -40,31 +41,61 @@ setClickHandler((g) => {
     else openListModal("墓地", p.graveyard);
     return;
   }
-  const slot = g.userData.slot;
-  const card = g.userData.card;
-  if (S.mode === "attack" && slot.who === "ai" && slot.kind === "monster") {
-    S.duel.declareAttack(S.attackZone, slot.idx);
+  if (g.userData.zone && S.mode === "place") {
+    // 放置模式：点击发光格落子（monster/st 均传 zone 给引擎）
+    const z = g.userData.zone;
+    const pl = S.place;
+    if (!pl || z.who !== "me" || z.kind !== pl.kind) return;
+    if (pl.kind === "monster") {
+      if (pl.tributePool)
+        S.duel.tributeSummon(pl.handIdx, pl.tributePool, z.idx, pl.position);
+      else if (pl.position === "set") S.duel.setMonster(pl.handIdx, z.idx);
+      else S.duel.normalSummon(pl.handIdx, z.idx, pl.position);
+    } else {
+      S.duel.setSpellTrap(pl.handIdx, z.idx);
+    }
     exitMode();
     return;
   }
-  if (S.mode === "tribute" && slot.who === "me" && slot.kind === "monster") {
-    toggleTribute(slot.idx);
+  const slot = g.userData.slot;
+  const card = g.userData.card;
+  if (S.mode === "attack") {
+    if (slot.who === "ai" && slot.kind === "monster") {
+      S.duel.declareAttack(S.attackZone, slot.idx);
+      exitMode();
+    } else toast("请点击对方的怪兽选择攻击目标");
+    return;
+  }
+  if (S.mode === "tribute") {
+    if (slot.who === "me" && slot.kind === "monster") toggleTribute(slot.idx);
+    else toast("请点击自己场上的怪兽作为祭品");
+    return;
+  }
+  if (S.mode === "place") {
+    toast("请点击发光的格子选择位置");
+    return;
+  }
+  // 对方手牌只提示不可查看，不弹操作菜单（防信息泄露与越权操作）
+  if (slot.who === "ai" && slot.kind === "hand") {
+    toast("对方的手牌不可查看");
     return;
   }
   openMenu(card, slot, g);
 });
 
 function newGame() {
+  const cfg = {
+    playerPreset: S.deckChoice,
+    aiPreset: S.aiDeckChoice,
+    pace: PACE_PRESETS[S.paceMode].pace,
+    promptDelay: PACE_PRESETS[S.paceMode].promptDelay,
+    aiDelay: S.opponentMode === "llm" ? 150 : 650, // 大模型模式下思考耗时本身构成节奏
+  };
+  S.startLP = cfg.lp || 8000; // 血条百分比分母（resetHud 需在设置后调用）
   resetHud();
   resetScene3D();
   S.duel = new Duel(
-    {
-      playerPreset: S.deckChoice,
-      aiPreset: S.aiDeckChoice,
-      pace: PACE_PRESETS[S.paceMode].pace,
-      promptDelay: PACE_PRESETS[S.paceMode].promptDelay,
-      aiDelay: S.opponentMode === "llm" ? 150 : 650, // 大模型模式下思考耗时本身构成节奏
-    },
+    cfg,
     {
       onState: () => {
         render();
@@ -100,9 +131,6 @@ const canAct = () =>
   !S.duel.state.winner;
 $("tb-main").onclick = () => {
   if (canAct() && ["main1", "battle", "main2"].includes(S.duel.state.phase)) S.duel.nextPhase();
-};
-$("tb-alt").onclick = () => {
-  if (canAct() && S.duel.state.phase === "battle") S.duel.nextPhase();
 };
 $("tb-end").onclick = () => {
   if (canAct() && ["main1", "battle"].includes(S.duel.state.phase)) S.duel.endTurn();
@@ -157,6 +185,8 @@ document.addEventListener("keydown", (e) => {
 });
 
 S.onAgain = newGame;
+// 拖拽召唤的桥接：高星怪兽拖入场上时转入祭品模式（scene 不反向依赖 hud）
+S.dragBridge = { startTribute };
 
 // 调试句柄（控制台/自动化测试用）
 window.__ygo3d = { S, projectCard3D, debugPick, sceneChipEls, sceneCardMeshes };

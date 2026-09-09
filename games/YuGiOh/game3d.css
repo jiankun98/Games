@@ -228,125 +228,7 @@
         padding: 6px 12px;
         gap: 4px;
       }
-      .lp-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 0 6px;
-        border-radius: var(--r-xs);
-        transition: background 0.4s;
-      }
-      /* 当前行动方的 LP 行：呼吸光晕标识回合归属 */
-      .lp-row.active {
-        background: linear-gradient(
-          90deg,
-          rgba(74, 163, 255, 0.07),
-          transparent 60%
-        );
-      }
-      .lp-row.ai-side.active {
-        background: linear-gradient(
-          90deg,
-          rgba(229, 72, 77, 0.08),
-          transparent 60%
-        );
-      }
-      .lp-name {
-        font-size: 14px;
-        font-weight: 800;
-        width: 68px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 5px;
-        white-space: nowrap;
-        padding: 3px 0;
-        border-radius: var(--r-sm);
-        background: rgba(0, 0, 0, 0.38);
-        border: 1px solid currentColor;
-        letter-spacing: 2px;
-      }
-      .lp-name::before {
-        content: "";
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: currentColor;
-        opacity: 0.35;
-        transition:
-          opacity 0.3s,
-          box-shadow 0.3s;
-      }
-      .lp-row.active .lp-name::before {
-        opacity: 1;
-        box-shadow: 0 0 8px currentColor;
-        animation: lpPulse 2.2s ease-in-out infinite;
-      }
-      @keyframes lpPulse {
-        50% {
-          opacity: 0.55;
-        }
-      }
-      .lp-name.ai {
-        color: var(--lp-ai);
-      }
-      .lp-name.me {
-        color: var(--lp-me);
-      }
-      .lp-bar {
-        flex: 1;
-        height: 16px;
-        background: rgba(0, 0, 0, 0.45);
-        border: 1px solid var(--border);
-        border-radius: var(--r-sm);
-        overflow: hidden;
-        position: relative;
-        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.55);
-      }
-      .lp-fill {
-        height: 100%;
-        border-radius: 0 var(--r-xs) var(--r-xs) 0;
-        transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
-        position: relative;
-      }
-      .lp-fill::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(
-          rgba(255, 255, 255, 0.38),
-          rgba(255, 255, 255, 0.06) 45%,
-          transparent
-        );
-        pointer-events: none;
-      }
-      .lp-fill.me {
-        background: linear-gradient(90deg, #1e5fa0, var(--lp-me));
-      }
-      .lp-fill.ai {
-        background: linear-gradient(90deg, #8a2f2f, var(--lp-ai));
-      }
-      .lp-val {
-        font-size: 19px;
-        font-weight: 800;
-        width: 72px;
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-        display: inline-block;
-        text-shadow: 0 0 12px rgba(238, 241, 247, 0.35);
-      }
-      .lp-val.bump {
-        animation: lpBump 0.42s cubic-bezier(0.2, 1.4, 0.4, 1);
-      }
-      @keyframes lpBump {
-        30% {
-          transform: scale(1.28);
-          color: #ff9d9d;
-        }
-        100% {
-          transform: scale(1);
-        }
-      }
+      /* LP 显示已改为 3D 场地嵌入式显示屏（scene.mjs makeLpBoard），此处不再有 DOM 血条 */
 
       /* 3D 舞台 */
       .stage {
@@ -360,6 +242,7 @@
       }
       .stage canvas {
         display: block;
+        touch-action: none; /* 画布手势（拖拽视角/点选）不被浏览器滚动/缩放抢占 */
       }
       .stage .hint3d {
         position: absolute;
@@ -722,13 +605,22 @@
         transform: scale(1.04);
       }
 
-      /* ============ 连锁横幅 ============ */
-      .chain-banner {
+      /* ============ 顶部浮层纵排容器（连锁横幅/LLM思考/事件通知同屏不互相遮挡） ============ */
+      .notify-stack {
         position: fixed;
         top: 52px;
         left: 50%;
         transform: translateX(-50%);
-        z-index: 40;
+        z-index: 56;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        pointer-events: none;
+      }
+
+      /* ============ 连锁横幅 ============ */
+      .chain-banner {
         background: rgba(16, 20, 32, 0.96);
         border: 1px solid var(--accent);
         border-radius: 10px;
@@ -1526,11 +1418,6 @@
 
       /* ============ 大模型对手 ============ */
       .llm-think {
-        position: fixed;
-        top: 96px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 46;
         display: none;
         align-items: center;
         gap: 9px;
@@ -1564,11 +1451,6 @@
       }
       /* ============ 事件通知（串行队列：一次一条，引擎 await 播完再继续） ============ */
       .event-notify {
-        position: fixed;
-        top: 140px;
-        left: 50%;
-        transform: translate(-50%, -10px);
-        z-index: 56;
         display: flex;
         align-items: center;
         gap: 9px;
@@ -1588,10 +1470,11 @@
         transition:
           opacity 0.18s ease,
           transform 0.18s ease;
+        transform: translateY(-10px);
       }
       .event-notify.show {
         opacity: 1;
-        transform: translate(-50%, 0);
+        transform: translateY(0);
       }
       .event-notify .en-ic {
         display: grid;
@@ -1620,9 +1503,8 @@
       .event-notify.k-draw .en-ic {
         color: var(--lp-me);
       }
-      /* 大事件（发动魔法/陷阱）：居中大字横幅级别 */
+      /* 大事件（发动魔法/陷阱）：横幅级别加粗放大 */
       .event-notify.big {
-        top: 31%;
         font-size: 17px;
         padding: 12px 28px;
         border-width: 2px;
@@ -1731,5 +1613,78 @@
           animation-duration: 0.01ms !important;
           animation-iteration-count: 1 !important;
           transition-duration: 0.01ms !important;
+        }
+      }
+
+      /* ============ 机位切换按钮组（左下角悬浮，避开右下堆位投影区） ============ */
+      .view-switch {
+        position: fixed;
+        left: 14px;
+        bottom: 70px;
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .view-switch button {
+        width: 64px;
+        padding: 7px 0;
+        border-radius: var(--r-sm);
+        background: var(--glass);
+        backdrop-filter: blur(6px);
+        border: 1px solid var(--border);
+        color: #cdd6e4;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        cursor: pointer;
+        transition:
+          border-color 0.15s ease,
+          color 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+      .view-switch button:hover {
+        border-color: rgba(230, 178, 74, 0.55);
+        color: #ffd98f;
+      }
+      .view-switch button.on {
+        border-color: var(--accent);
+        color: #ffd98f;
+        box-shadow: 0 0 14px rgba(230, 178, 74, 0.35);
+      }
+
+      /* ============ 窄屏/竖屏适配 ============ */
+      @media (max-width: 900px) {
+        /* 卡牌预览面板改为底部居中窄条，避免压住 3D 场地左半区 */
+        .card-preview {
+          left: 50%;
+          bottom: 148px;
+          top: auto;
+          transform: translateX(-50%);
+          width: min(300px, 78vw);
+          max-height: 34vh;
+          overflow-y: auto;
+        }
+        .notify-stack {
+          max-width: 92vw;
+        }
+        .event-notify,
+        .chain-banner {
+          white-space: normal;
+        }
+        .view-switch {
+          left: 8px;
+          bottom: 64px;
+        }
+        .view-switch button {
+          width: 52px;
+          font-size: 11px;
+          padding: 6px 0;
+        }
+        .turn-bar {
+          flex-wrap: wrap;
+        }
+        header .title {
+          font-size: 15px;
         }
       }

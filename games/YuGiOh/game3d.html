@@ -24,29 +24,14 @@
     </header>
 
     <div class="board" id="board">
-      <div class="lp-row ai-side" id="lp-row-ai">
-        <span class="lp-name ai">AI</span>
-        <div class="lp-bar" id="lp-ai-bar">
-          <div class="lp-fill ai" id="lp-ai-fill"></div>
-        </div>
-        <span class="lp-val" id="lp-ai">8000</span>
-      </div>
       <div class="stage" id="stage">
-        <div class="hint3d">点击卡牌查看/操作 · 拖拽旋转视角（水平）</div>
-      </div>
-      <div class="lp-row" id="lp-row-me">
-        <span class="lp-name me">玩家</span>
-        <div class="lp-bar" id="lp-me-bar">
-          <div class="lp-fill me" id="lp-me-fill"></div>
-        </div>
-        <span class="lp-val" id="lp-me">8000</span>
+        <div class="hint3d">点击卡牌操作 · 拖手牌到场上可直接召唤 · 拖拽平移视角 · 滚轮缩放 · 双击空白复位</div>
       </div>
       <div class="turn-bar" id="turn-bar">
         <div class="tb-phase">
           <div class="tb-tip" id="tb-tip">—</div>
         </div>
         <button class="tb-btn primary" id="tb-main">⚔ 进入战斗</button>
-        <button class="tb-btn ghost" id="tb-alt">🛠 主阶段 2</button>
         <button class="tb-btn" id="tb-end">▶ 结束回合</button>
       </div>
     </div>
@@ -54,9 +39,11 @@
     <div class="mode-bar" id="mode-bar"></div>
     <div class="card-preview" id="card-preview"></div>
     <div class="atk-overlay" id="atk-overlay"></div>
-    <div class="chain-banner" id="chain-banner"></div>
-    <div class="llm-think" id="llm-think"><span class="tdot"></span>🤖 大模型思考中…</div>
-    <div class="event-notify" id="event-notify"><span class="en-ic"></span><span class="en-tx"></span></div>
+    <div class="notify-stack">
+      <div class="chain-banner" id="chain-banner"></div>
+      <div class="llm-think" id="llm-think"><span class="tdot"></span>🤖 大模型思考中…</div>
+      <div class="event-notify" id="event-notify"><span class="en-ic"></span><span class="en-tx"></span></div>
+    </div>
     <div class="log-panel" id="log-panel">
       <header>
         <div style="font-size: 14px; font-weight: 700">对局日志</div>
