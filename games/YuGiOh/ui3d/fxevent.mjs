@@ -5,9 +5,9 @@
  */
 import { S, PACE_SCALE } from "./store.mjs";
 import { IC } from "./labels.mjs";
-import { fxTurnBanner, fxPhaseBanner, fxLpFloat } from "./domfx.mjs";
+import { fxTurnBanner, fxPhaseBanner, fxLpFloat, fxShowcase } from "./domfx.mjs";
 import { sfx } from "./sfx.mjs";
-import { fxGlow3D, fxSummon3D, fxAttack3D, fxImpact3D, fxBurst3D, tween3D, shakeBoard, cardMeshes, projectLp3D } from "./scene.mjs";
+import { artUrl, fxGlow3D, fxSummon3D, fxAttack3D, fxImpact3D, fxBurst3D, tween3D, shakeBoard, cardMeshes, projectLp3D } from "./scene.mjs";
 const $ = (id) => document.getElementById(id);
 
       /* ===================== 事件通知队列（串行） =====================
@@ -115,21 +115,32 @@ const $ = (id) => document.getElementById(id);
           case "summon": {
             const who = actorText(ev.actor);
             let text;
+            let showcase = null;
             if (ev.hidden) {
               text = `${who}覆盖了1只怪兽`;
             } else {
-              const kindName =
+              const kindText =
                 {
                   normal: "通常召唤",
                   tribute: "祭品召唤",
                   special: "特殊召唤",
                   fusion: "融合召唤",
                 }[ev.summonKind] || "召唤";
-              text = `${who}${who === "AI" ? " " : ""}${kindName}「${ev.monster ? ev.monster.name : "?"}」`;
+              text = `${who}${who === "AI" ? " " : ""}${kindText}「${ev.monster ? ev.monster.name : "?"}」`;
               fxSummon3D(ev.monster);
               sfx("summon");
+              // 表侧召唤的居中展示演出（高星/融合更值得驻留，普通低星快速带过）
+              const holdBoost =
+                ev.summonKind === "fusion" || (ev.monster && (ev.monster.level || 0) >= 7);
+              showcase = fxShowcase(
+                ev.monster,
+                kindText,
+                ev.monster.password ? artUrl(ev.monster.password) : null,
+              ).then(() => {
+                if (holdBoost) return fxPause(320);
+              });
             }
-            return Promise.all([fxPause(ev.hidden ? 0 : 300), notify(text, "summon")]);
+            return Promise.all([fxPause(ev.hidden ? 0 : 300), showcase || Promise.resolve(), notify(text, "summon")]);
           }
           case "activate":
             if (ev.source === "auto") {

@@ -3,9 +3,9 @@
  *  原单文件内联脚本的顶层 let 变量收拢为 S 对象，各模块 import { S } 读写同一份状态。
  */
 export const PACE_PRESETS = {
-  fast: { label: "⚡ 快速", pace: 120, promptDelay: 100 },
-  normal: { label: "▶ 标准", pace: 350, promptDelay: 220 },
-  slow: { label: "🐢 悠闲", pace: 650, promptDelay: 400 },
+  fast: { label: "快速", pace: 120, promptDelay: 100 },
+  normal: { label: "标准", pace: 350, promptDelay: 220 },
+  slow: { label: "悠闲", pace: 650, promptDelay: 400 },
 };
 export const PACE_SCALE = { fast: 0.55, normal: 1, slow: 1.3 }; // 事件通知停留时长随节奏档缩放
 
@@ -17,15 +17,14 @@ export function hiddenForMe(card, slot) {
 
 const S = {
   duel: null, // 当前 Duel 实例
-  mode: null, // 'attack' | 'tribute' | 'place' | null（多步操作模式）
+  mode: null, // 'attack' | 'tribute' | null（多步操作模式）
   attackZone: null,
   tributeHandIdx: null,
   tributePool: [],
   startLP: 8000, // 本局初始 LP（血条百分比分母，来自 duel.startingLP）
-  place: null, // 'place' 模式参数：{ handIdx, kind, position }（选择召唤/覆盖位置）
   menuOpen: false,
-  deckChoice: "classic",
-  aiDeckChoice: "classic",
+  deckChoice: "dragon", // decks.mjs 预设 key
+  aiDeckChoice: "dragon",
   opponentMode: (() => {
     try {
       return localStorage.getItem("ygo.opp") === "llm" ? "llm" : "ai";

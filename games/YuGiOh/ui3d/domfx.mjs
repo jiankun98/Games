@@ -3,6 +3,7 @@
  */
 import { animate } from "animejs";
 import { PHASE_TIPS } from "./labels.mjs";
+import { S, PACE_SCALE } from "./store.mjs";
 const $ = (id) => document.getElementById(id);
 
       function fxEl(inner, x, y, cls, opts = {}) {
@@ -84,5 +85,55 @@ const $ = (id) => document.getElementById(id);
         f.style.background = color;
         animate(f, { opacity: [0, 0.55, 0], duration: 420, ease: "linear" });
       }
+      /* ===================== 召唤展示演出（居中大卡） =====================
+         表侧召唤/特殊召唤/融合时，卡面放大居中展示：卡图 + 名称横幅 + 召唤方式。
+         art 由调用方传入（domfx 不反向依赖 scene）；与通知队列串行，播放完即 resolve。 */
+      function fxShowcase(card, kindText, art) {
+        if (!card || card.faceDown) return Promise.resolve();
+        return new Promise((resolve) => {
+          const el = document.createElement("div");
+          el.className = "fx fx-showcase";
+          const stats =
+            card.type === "monster"
+              ? `<span class="sc-atk">ATK ${card.atk ?? "?"}</span><span class="sc-def">DEF ${card.def ?? "?"}</span>`
+              : `<span class="sc-atk">${card.type === "spell" ? "魔法" : "陷阱"}${card.subtype ? " · " + card.subtype : ""}</span>`;
+          el.innerHTML = `
+            <div class="sc-art"><img src="${art || ""}" alt="" draggable="false"
+                 onerror="this.style.display='none';this.parentNode.classList.add('noart')"></div>
+            <div class="sc-namebar"><b>${card.name}</b><span>${kindText}</span><em>${stats}</em></div>`;
+          document.body.appendChild(el);
+          const scale = PACE_SCALE?.[S?.paceMode] || 1;
+          const inMs = 360;
+          const hold = 900 * scale;
+          const outMs = 380;
+          const total = inMs + hold + outMs;
+          // 展示演出会阻塞引擎事件队列：resolve 必须走 setTimeout 兜底（rAF 被
+          // 后台标签节流时 anime 的 onComplete 永不触发，不能作为唯一推进手段）
+          let finished = false;
+          const finish = () => {
+            if (finished) return;
+            finished = true;
+            el.remove();
+            resolve();
+          };
+          animate(el, {
+            opacity: [0, 1],
+            scale: [0.7, 1],
+            filter: ["blur(10px)", "blur(0px)"],
+            duration: inMs,
+            ease: "outCubic",
+            onComplete: () => {
+              animate(el, {
+                opacity: 0,
+                scale: [1, 1.06],
+                duration: outMs,
+                ease: "inQuad",
+                onComplete: finish,
+              });
+            },
+          });
+          setTimeout(finish, total + 260);
+        });
+      }
 
-export { fxEl, fxTurnBanner, fxPhaseBanner, fxLpFloat, flashScreen };
+export { fxEl, fxTurnBanner, fxPhaseBanner, fxLpFloat, fxShowcase, flashScreen };

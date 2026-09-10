@@ -12,27 +12,30 @@
           const handIdx = info.idx;
           if (card.type === "monster") {
             if (card.level < 5) {
-              // 召唤/覆盖进入放置模式：玩家点选具体怪兽区格（引擎 normalSummon/setMonster 均支持 zone 参数）
+              // 召唤/覆盖直接落第一个空格（zone=null 由引擎自动选位）；拖拽仍可指定落点与表示形式
               acts.push({
                 icon: ctx.ic.sword,
-                label: "通常召唤·攻击表示",
+                label: "通常召唤（攻击）",
                 primary: true,
                 fn: () => {
-                  ctx.startPlace({ handIdx, kind: "monster", position: "atk" });
+                  ctx.duel.normalSummon(handIdx, null, "atk");
+                  ctx.closeMenu();
                 },
               });
               acts.push({
                 icon: ctx.ic.shield,
-                label: "通常召唤·守备表示",
+                label: "守备表示召唤",
                 fn: () => {
-                  ctx.startPlace({ handIdx, kind: "monster", position: "def" });
+                  ctx.duel.normalSummon(handIdx, null, "def");
+                  ctx.closeMenu();
                 },
               });
               acts.push({
                 icon: ctx.ic.setCard,
                 label: "覆盖（里侧守备）",
                 fn: () => {
-                  ctx.startPlace({ handIdx, kind: "monster", position: "set" });
+                  ctx.duel.setMonster(handIdx, null);
+                  ctx.closeMenu();
                 },
               });
             } else {
@@ -71,7 +74,8 @@
               label: "覆盖",
               primary: !canFire,
               fn: () => {
-                ctx.startPlace({ handIdx, kind: "st", position: "set" });
+                ctx.duel.setSpellTrap(handIdx, null);
+                ctx.closeMenu();
               },
             });
           } else if (card.type === "trap") {
@@ -80,7 +84,8 @@
               label: "覆盖",
               primary: true,
               fn: () => {
-                ctx.startPlace({ handIdx, kind: "st", position: "set" });
+                ctx.duel.setSpellTrap(handIdx, null);
+                ctx.closeMenu();
               },
             });
           }
@@ -144,7 +149,7 @@
           card.turnSet < s.turn
         )
           acts.push({
-            icon: "✨",
+            icon: ctx.ic.spark,
             label: "发动",
             primary: true,
             fn: () => {

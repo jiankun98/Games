@@ -5,6 +5,7 @@
 import { Duel } from "../engine/duel.mjs";
 import { AiPlayer } from "../ai-player.mjs";
 import { LlmPlayer, YGO_LLM } from "../llm-player.mjs";
+import { buildMainDeck, buildExtraDeck } from "../decks.mjs";
 import { S, PACE_PRESETS, saveOppMode } from "./store.mjs";
 import { IC } from "./labels.mjs";
 import { sfx, toggleSfx } from "./sfx.mjs";
@@ -18,7 +19,7 @@ function ensureLlmPlayer() {
   if (!S.llmPlayer) {
     S.llmPlayer = new LlmPlayer();
     S.llmPlayer.onThinking = (on) => $("llm-think").classList.toggle("show", !!on);
-    S.llmPlayer.onWhy = (w) => pushLog("🤖 " + w, true);
+    S.llmPlayer.onWhy = (w) => pushLog("大模型：" + w, true);
     S.llmPlayer.onFallback = (m) => toast(m);
   }
   return S.llmPlayer;
@@ -41,24 +42,10 @@ setClickHandler((g) => {
     else openListModal("墓地", p.graveyard);
     return;
   }
-  if (g.userData.zone && S.mode === "place") {
-    // 放置模式：点击发光格落子（monster/st 均传 zone 给引擎）
-    const z = g.userData.zone;
-    const pl = S.place;
-    if (!pl || z.who !== "me" || z.kind !== pl.kind) return;
-    if (pl.kind === "monster") {
-      if (pl.tributePool)
-        S.duel.tributeSummon(pl.handIdx, pl.tributePool, z.idx, pl.position);
-      else if (pl.position === "set") S.duel.setMonster(pl.handIdx, z.idx);
-      else S.duel.normalSummon(pl.handIdx, z.idx, pl.position);
-    } else {
-      S.duel.setSpellTrap(pl.handIdx, z.idx);
-    }
-    exitMode();
-    return;
-  }
+  if (g.userData.zone) return; // 场地区域光格：仅作为拖拽落点判定，点击无操作
   const slot = g.userData.slot;
   const card = g.userData.card;
+  if (!slot) return;
   if (S.mode === "attack") {
     if (slot.who === "ai" && slot.kind === "monster") {
       S.duel.declareAttack(S.attackZone, slot.idx);
@@ -71,10 +58,6 @@ setClickHandler((g) => {
     else toast("请点击自己场上的怪兽作为祭品");
     return;
   }
-  if (S.mode === "place") {
-    toast("请点击发光的格子选择位置");
-    return;
-  }
   // 对方手牌只提示不可查看，不弹操作菜单（防信息泄露与越权操作）
   if (slot.who === "ai" && slot.kind === "hand") {
     toast("对方的手牌不可查看");
@@ -84,9 +67,12 @@ setClickHandler((g) => {
 });
 
 function newGame() {
+  // 卡组来自 decks.mjs 的 30 套预设，直接以 id 数组交给引擎（不再依赖 cards.mjs 的 preset 名）
   const cfg = {
-    playerPreset: S.deckChoice,
-    aiPreset: S.aiDeckChoice,
+    playerDeck: buildMainDeck(S.deckChoice),
+    playerExtra: buildExtraDeck(S.deckChoice),
+    aiDeck: buildMainDeck(S.aiDeckChoice),
+    aiExtra: buildExtraDeck(S.aiDeckChoice),
     pace: PACE_PRESETS[S.paceMode].pace,
     promptDelay: PACE_PRESETS[S.paceMode].promptDelay,
     aiDelay: S.opponentMode === "llm" ? 150 : 650, // 大模型模式下思考耗时本身构成节奏
@@ -115,7 +101,7 @@ function newGame() {
     llm._fallbackToasted = false;
     llm.attach(S.duel, new AiPlayer(S.duel));
     S.duel.ai = llm;
-    pushLog("本局对手：🤖 大模型（" + (YGO_LLM.loadCfg().model || "未配置") + "）", true);
+    pushLog("本局对手：大模型（" + (YGO_LLM.loadCfg().model || "未配置") + "）", true);
   }
   S.duel.start();
 }
@@ -190,4 +176,5 @@ S.dragBridge = { startTribute };
 
 // 调试句柄（控制台/自动化测试用）
 window.__ygo3d = { S, projectCard3D, debugPick, sceneChipEls, sceneCardMeshes };
-newGame();
+// 开局先选卡组：面板内"开始对局"经 S.onAgain 进入 newGame
+openDeckSelect();

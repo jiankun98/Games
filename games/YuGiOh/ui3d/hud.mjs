@@ -5,12 +5,13 @@
  */
 import { animate } from "animejs";
 import { S, saveOppMode, hiddenForMe } from "./store.mjs";
-import { IC, ATTR_EM, RACE_EM, DECK_LABELS, DECK_EMOJIS, PHASE_TIPS, PHASE_NAMES } from "./labels.mjs";
+import { IC, ATTR_TXT, PHASE_TIPS, PHASE_NAMES, PHASE_ORDER } from "./labels.mjs";
 import { sfx } from "./sfx.mjs";
 import { flashScreen } from "./domfx.mjs";
-import { chipEls, projectMesh, artUrl, setZoneHighlight3D, sync3D, updateLP3D, setLpTurn3D } from "./scene.mjs";
-import { availableActions, handPlacementZones } from "./actions.mjs";
-import { DECK_PRESETS } from "../cards.mjs";
+import { chipEls, projectMesh, artUrl, setZoneHighlight3D, sync3D } from "./scene.mjs";
+import { availableActions } from "./actions.mjs";
+import { CARD_BY_ID } from "../cards.mjs";
+import { EXTRA_DECK_PRESETS, DECK_META, buildMainDeck, buildExtraDeck } from "../decks.mjs";
 import { YGO_LLM } from "../llm-player.mjs";
 const $ = (id) => document.getElementById(id);
 
@@ -44,10 +45,10 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         em.className = "em";
         em.textContent =
           card.type === "monster"
-            ? RACE_EM[card.race] || "★"
+            ? (card.race || "怪兽").replace(/族$/, "")
             : card.type === "spell"
-              ? "✨"
-              : "🪤";
+              ? "魔法"
+              : "陷阱";
         art.appendChild(em);
         if (card.password && !opts.back && !opts.set) {
           const img = document.createElement("img");
@@ -64,7 +65,7 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         if (card.type === "monster") {
           const attr = document.createElement("div");
           attr.className = "attr";
-          attr.textContent = ATTR_EM[card.attribute] || "";
+          attr.textContent = ATTR_TXT[card.attribute] || "";
           el.appendChild(attr);
           if (card.level) {
             const stars = document.createElement("div");
@@ -90,13 +91,62 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         return el;
       }
       /* ===================== 渲染（DOM 部分） ===================== */
+      /* 阶段进度条：6 节点随当前阶段点亮（我方金色 / AI 回合红色），仅作流程可视化 */
+      const PHASE_ICONS = {
+        draw: IC.draw,
+        standby: IC.check,
+        main1: IC.spark,
+        battle: IC.sword,
+        main2: IC.gear,
+        end: IC.flag,
+      };
+      function renderPhaseTrack(s) {
+        const track = $("phase-track");
+        if (!track) return;
+        if (!track.children.length) {
+          for (const ph of PHASE_ORDER) {
+            const n = document.createElement("div");
+            n.className = "pt-node";
+            n.dataset.phase = ph;
+            const tip = PHASE_TIPS[ph];
+            n.title = tip ? tip[0] : ph;
+            n.innerHTML = `<span class="pt-ic">${PHASE_ICONS[ph] || ""}</span>`;
+            track.appendChild(n);
+            if (ph !== "end") {
+              const line = document.createElement("i");
+              line.className = "pt-line";
+              track.appendChild(line);
+            }
+          }
+          document.querySelectorAll(".lp-ic[data-ic]").forEach((el) => {
+            el.innerHTML = IC[el.dataset.ic] || "";
+            el.removeAttribute("data-ic");
+          });
+        }
+        const cur = PHASE_ORDER.indexOf(s.phase);
+        track.classList.toggle("ai", s.turnPlayer !== "me" && !s.winner);
+        let i = 0;
+        for (const n of track.querySelectorAll(".pt-node")) {
+          n.classList.toggle("cur", i === cur);
+          n.classList.toggle("done", cur >= 0 && i < cur);
+          i++;
+        }
+      }
       function render() {
         const s = S.duel && S.duel.state;
         if (!s) return;
         updateLP("me", s.me.lp);
         updateLP("ai", s.ai.lp);
-        // 当前行动方 LP 屏浮动强调（3D 屏边框加亮 + 指示点）
-        setLpTurn3D(s.winner ? null : s.turnPlayer);
+        // 当前行动方 LP 行呼吸光晕
+        const meTurn = s.turnPlayer === "me" && !s.winner;
+        $("lp-row-me").classList.toggle("active", meTurn);
+        $("lp-row-ai").classList.toggle("active", !meTurn && !s.winner);
+        renderPhaseTrack(s);
+        // 玩家盒：卡组/墓地余量
+        $("ai-deck-count").textContent = s.ai.deck.length;
+        $("ai-grave-count").textContent = s.ai.graveyard.length;
+        $("me-deck-count").textContent = s.me.deck.length;
+        $("me-grave-count").textContent = s.me.graveyard.length;
         // 回合信息单一来源：顶部一条完整展示（第 N 回合 · 谁的回合 · 阶段全称）
         const tp = s.turnPlayer;
         $("phase-tag").textContent =
@@ -123,10 +173,22 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         if (s.winner && !winnerShown) showGameOver(s.winner);
       }
       function updateLP(who, val) {
-        // 3D LP 屏：数字滚动补间 + 掉血红闪（分母 S.startLP，百分比 clamp 0~100）
-        updateLP3D(who, val);
-        if (val < prevLp[who] && who === "me")
-          flashScreen("rgba(229,72,77,0.25)"); // 玩家受击的屏幕红闪反馈
+        const el = $(`lp-${who}`);
+        if (el.textContent !== String(val)) {
+          el.textContent = val;
+          el.classList.remove("bump");
+          void el.offsetWidth; // 重启动画
+          el.classList.add("bump");
+        }
+        const fill = $(`lp-${who}-fill`);
+        fill.style.width = Math.max(0, (val / (S.startLP || 8000)) * 100) + "%";
+        if (val < prevLp[who]) {
+          const bar = $(`lp-${who}-bar`);
+          bar.classList.remove("hit");
+          void bar.offsetWidth;
+          bar.classList.add("hit");
+          if (who === "me") flashScreen("rgba(229,72,77,0.25)"); // 玩家受击的屏幕红闪
+        }
         prevLp[who] = val;
       }
       function renderTurnBar(s) {
@@ -137,7 +199,7 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         $("tb-tip").textContent = mine
           ? (tipNow && tipNow[1]) || ""
           : "AI 行动中…";
-        $("turn-bar").className = "turn-bar" + (mine ? "" : " ai");
+        $("turn-bar").className = "action-cluster turn-bar" + (mine ? "" : " ai");
         const mainBtn = $("tb-main"),
           endBtn = $("tb-end");
         // cls: "primary"（金底主操作）| "end"（描边高亮次主操作）| "ghost"（弱化）
@@ -169,7 +231,7 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
           if (n !== lastChainLen) sfx("chain");
           el.classList.add("show");
           el.innerHTML =
-            `<b>⚡ 连锁 ${n}</b>` +
+            `<b>连锁 ${n}</b>` +
             s.chain
               .map(
                 (l, i) =>
@@ -190,7 +252,7 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         mask.onclick = () => closeMenu();
         document.body.appendChild(mask);
         const menu = document.createElement("div");
-        menu.className = "card-menu";
+        menu.className = "card-menu t-" + card.type; // 类型着色：怪兽金棕 / 魔法绿 / 陷阱紫
         menu.id = "card-menu";
         // AI 手牌与里侧卡统一按未知处理（不展示卡名/攻防/效果文本）
         const isOppFacedown = hiddenForMe(card, info);
@@ -223,11 +285,7 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         }
         const actions = document.createElement("div");
         actions.className = "actions";
-        const acts = availableActions({ duel: S.duel, ic: IC, closeMenu, startTribute, startPlace, enterAttackMode }, card, info);
-        // 合法放置区高亮：手牌召唤/覆盖时点亮可用格（关菜单/切模式时熄灭）
-        setZoneHighlight3D(
-          info && info.kind === "hand" ? handPlacementZones(S.duel, card) : null,
-        );
+        const acts = availableActions({ duel: S.duel, ic: IC, closeMenu, startTribute, enterAttackMode }, card, info);
         if (acts.length)
           acts.forEach((a) => {
             // 用 button 而非 div：可 Tab 聚焦/回车触发（键盘可达）
@@ -301,23 +359,11 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         sync3D(); // 祭品候选金色高亮立即生效
         renderModeBar();
       }
-      /* 放置模式：选中手牌动作后，点亮可用格让玩家点选具体位置
-         place = { handIdx, kind: "monster"|"st", position: "atk"|"def"|"set", tributePool? } */
-      function startPlace(place) {
-        closeMenu();
-        S.mode = "place";
-        S.place = place;
-        const card = S.duel.state.me.hand[place.handIdx];
-        setZoneHighlight3D(handPlacementZones(S.duel, card));
-        render();
-        renderModeBar();
-      }
       function exitMode() {
         S.mode = null;
         S.attackZone = null;
         S.tributeHandIdx = null;
         S.tributePool = [];
-        S.place = null;
         setZoneHighlight3D(null);
         render();
         sync3D(); // 清除模式染色（攻击目标红/祭品金），避免残留
@@ -353,7 +399,7 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
           if (S.duel.state.ai.monsterZone.every((x) => !x)) {
             const b = document.createElement("button");
             b.className = "btn big";
-            b.textContent = "💥 直接攻击";
+            b.textContent = "直接攻击";
             b.onclick = () => {
               S.duel.declareAttack(S.attackZone, null);
               exitMode();
@@ -362,7 +408,7 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
           } else {
             const hint = document.createElement("div");
             hint.className = "atk-hint";
-            hint.textContent = "🖱 点击对方怪兽（红色高亮）选择攻击目标";
+            hint.textContent = "点击对方怪兽（红色高亮）选择攻击目标";
             overlay.appendChild(hint);
           }
           const c = document.createElement("button");
@@ -385,39 +431,16 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
           bar.appendChild(lbl);
           const ok = document.createElement("button");
           ok.className = "btn";
-          ok.textContent = "选位置召唤";
+          ok.textContent = "召唤";
           ok.disabled = S.tributePool.length !== need;
           ok.onclick = () => {
             if (S.tributePool.length === need) {
-              // 祭品选定后进入放置模式点选落位（tributeSummon 支持指定 zone）
-              startPlace({
-                handIdx: S.tributeHandIdx,
-                kind: "monster",
-                position: "atk",
-                tributePool: [...S.tributePool],
-              });
+              // 祭品选定后直接召唤（zone=null 引擎自动落第一个空格）
+              S.duel.tributeSummon(S.tributeHandIdx, [...S.tributePool], null, "atk");
+              exitMode();
             }
           };
           bar.appendChild(ok);
-          const c = document.createElement("button");
-          c.className = "btn ghost";
-          c.textContent = "取消";
-          c.onclick = () => exitMode();
-          bar.appendChild(c);
-          return;
-        }
-        if (S.mode === "place") {
-          const card = S.duel.state.me.hand[S.place.handIdx];
-          const verb =
-            S.place.kind === "monster"
-              ? S.place.position === "set"
-                ? "覆盖"
-                : "召唤"
-              : "覆盖魔陷";
-          const lbl = document.createElement("div");
-          lbl.className = "lbl";
-          lbl.textContent = `点击发光的格子，放置「${card ? card.name : "?"}」（${verb}）`;
-          bar.appendChild(lbl);
           const c = document.createElement("button");
           c.className = "btn ghost";
           c.textContent = "取消";
@@ -432,7 +455,7 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         const want = new Map(); // key -> { cls, text, fn }
         const s = S.duel && S.duel.state;
         if (s) {
-          // 战斗阶段（未进入攻击选择模式）：可攻击显示 ⚔ 攻击，不可攻击显示原因
+          // 战斗阶段（未进入攻击选择模式）：可攻击显示"攻击"，不可攻击显示原因
           if (
             s.turnPlayer === "me" &&
             s.phase === "battle" &&
@@ -508,6 +531,8 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         const key = card.uid + ":" + (info && info.who) + ":" + (oppHidden ? 1 : 0);
         if (key === previewKey) return;
         previewKey = key;
+        el.classList.remove("t-monster", "t-spell", "t-trap");
+        if (!oppHidden) el.classList.add("t-" + card.type); // 类型框色
         el.innerHTML = "";
         el.appendChild(
           cardEl(card, {
@@ -541,12 +566,14 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         const modal = $("modal");
         if (s.winner) return;
         if (!s.pending) {
-          if (!mask.dataset.gameover) {
+          // 卡组选择等需要保持的弹窗（dataset.hold）不因“无待决事项”而被关闭
+          if (!mask.dataset.gameover && !mask.dataset.hold) {
             mask.classList.remove("show");
             modal.innerHTML = "";
           }
           return;
         }
+        if (mask.dataset.hold) return;
         const p = s.pending;
         mask.classList.add("show");
         if (p.kind === "select") {
@@ -665,49 +692,153 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         modal.innerHTML = `<h3>游戏说明（3D 版）</h3><div class="help-list">
           <p><b>阶段</b>：抽卡→准备→主要1→战斗→主要2→结束。用底部回合条推进；先手首回合不抽卡、不能攻击。</p>
           <p><b>快捷键</b>：B 推进阶段（进入战斗 / 主阶段 2）、P 结束回合、Esc 关闭菜单 / 取消模式。悬停卡牌可在左侧查看完整卡牌信息。</p>
-          <p><b>操作</b>：点击 3D 卡牌弹出操作菜单（召唤/覆盖/发动/攻击等），选动作后点击发光格选位置；也可直接把手牌拖到场上发光格快速召唤/覆盖（高星怪兽会转入祭品选择）。点击卡组/墓地堆可查看；右下角可切换视角，滚轮缩放、双击空白复位。</p>
+          <p><b>操作</b>：点击 3D 卡牌弹出操作菜单（召唤/覆盖/发动/攻击等），召唤/覆盖自动落到第一个空格；也可直接把手牌拖到场上指定落点，拖拽中按住 Shift 松手=覆盖（里侧守备）、Ctrl=表侧守备（高星怪兽会转入祭品选择）。点击卡组/墓地堆可查看；右下角可切换视角，滚轮缩放、双击空白复位。</p>
           <p><b>召唤</b>：通常召唤每回合1次；5-6星需1祭品、7星以上需2祭品；覆盖=里侧守备；翻转召唤翻开里侧。</p>
           <p><b>战斗</b>：ATK对ATK比攻差伤害；ATK对守备比攻守，不足部分反伤。含贯穿、直接攻击、攻击响应陷阱。</p>
           <p><b>魔陷</b>：魔法可当回合从手牌发动；陷阱须先覆盖且当回合不可发动。装备给己方怪兽，场地全场生效。</p>
           <p><b>连锁</b>：咒文速度 通常魔法/起动1、陷阱2、反击陷阱3，LIFO结算。伤害步骤可丢弃栗子球免伤。</p>
-          <p><b>大模型对手</b>：新对局里把"对手"切到 🤖 大模型，可选供应商并填入密钥（仅存本地）。大模型会在枚举出的合法动作中思考决策，理由写入日志；失败/超时自动回退内置 AI。代理模式需先运行 node run/game.js。</p>
-          <p><b>胜负</b>：LP归0 或 抽卡时卡组为0 即败。右上角 ▶ 调节奏、🔊 开关音效。</p>
+          <p><b>大模型对手</b>：新对局里把"对手"切到 大模型，可选供应商并填入密钥（仅存本地）。大模型会在枚举出的合法动作中思考决策，理由写入日志；失败/超时自动回退内置 AI。代理模式需先运行 node run/game.js。</p>
+          <p><b>胜负</b>：LP归0 或 抽卡时卡组为0 即败。右上角的节奏按钮可调节奏、音效按钮可开关音效。</p>
         </div><div class="btns"><button class="btn ghost" id="help-close">关闭</button></div>`;
         $("help-close").onclick = () => {
           delete mask.dataset.gameover;
           mask.classList.remove("show");
         };
       }
+      let gameOverShownFor = null; // 已弹过结算的对局实例（防 resetHud 竞态重弹：再来一局时旧局残留 render 会重置 winnerShown）
       function showGameOver(winner) {
+        if (gameOverShownFor === S.duel) return; // 同一对局只弹一次
+        gameOverShownFor = S.duel;
         winnerShown = true;
         const mask = $("modal-mask");
         const modal = $("modal");
+        // 结算优先级最高：若卡组选择窗仍开着则直接接管
+        delete mask.dataset.hold;
+        modal.classList.remove("ds-wide");
         mask.dataset.gameover = "1";
         mask.classList.add("show");
         const win = winner === "me",
           draw = winner === "draw";
-        modal.innerHTML = `<div class="gameover"><h2 class="${draw ? "draw" : win ? "win" : "lose"}">${draw ? "平局" : win ? "胜利！" : "败北…"}</h2><p class="go-sub">${draw ? "双方同归于尽" : win ? "你击败了 AI" : "AI 取得了胜利"}</p><div class="btns"><button class="btn" id="again">再来一局</button></div></div>`;
+        // 全屏演出：光斑粒子（胜=金 / 负=暗红）+ 大字缩放点亮 + 按钮上滑
+        const particles = Array.from({ length: 36 }, (_, i) => {
+          const x = (i * 97) % 100; // 伪随机但确定性的散布
+          const delay = (i % 9) * 0.28;
+          const dur = 3 + (i % 5) * 0.7;
+          const size = 2 + (i % 3) * 2;
+          return `<i style="left:${x}%;--gd:${delay}s;--gdur:${dur}s;--gsz:${size}px"></i>`;
+        }).join("");
+        const title = draw ? "平局" : win ? "胜利" : "败北";
+        const sub = draw
+          ? "双方同归于尽"
+          : win
+            ? "你击败了 AI"
+            : "AI 取得了胜利";
+        modal.className = "modal gameover-show " + (draw ? "draw" : win ? "win" : "lose");
+        modal.innerHTML = `
+          <div class="go-fx">${particles}</div>
+          <div class="gameover">
+            <h2 class="${draw ? "draw" : win ? "win" : "lose"}">${title}</h2>
+            <p class="go-sub">${sub}</p>
+            <div class="btns"><button class="btn" id="again">再来一局</button></div>
+          </div>`;
         $("again").onclick = () => {
           delete mask.dataset.gameover;
           mask.classList.remove("show");
           if (S.onAgain) S.onAgain();
         };
       }
+      /* ===================== 卡组选择（列表 / 卡组详情 / 卡牌详情 三栏） ===================== */
+      const DECK_KEYS = Object.keys(EXTRA_DECK_PRESETS);
+      const deckName = (key) => (DECK_META[key] && DECK_META[key].name) || key;
+      /* 同名卡合并计数并按 怪兽/魔法/陷阱/额外 分组；30 套只算一次 */
+      const deckViewCache = new Map();
+      function deckView(key) {
+        if (deckViewCache.has(key)) return deckViewCache.get(key);
+        const tally = (ids) => {
+          const m = new Map();
+          for (const id of ids) {
+            const c = CARD_BY_ID[id];
+            if (!c) continue;
+            const e = m.get(id);
+            if (e) e.n++;
+            else m.set(id, { card: c, n: 1 });
+          }
+          return [...m.values()];
+        };
+        const main = tally(buildMainDeck(key));
+        const groups = [
+          { title: "怪兽", items: main.filter((e) => e.card.type === "monster") },
+          { title: "魔法", items: main.filter((e) => e.card.type === "spell") },
+          { title: "陷阱", items: main.filter((e) => e.card.type === "trap") },
+          { title: "额外卡组", items: tally(buildExtraDeck(key)) },
+        ];
+        for (const g of groups) g.count = g.items.reduce((s, e) => s + e.n, 0);
+        const v = {
+          meta: DECK_META[key] || { name: key, desc: "" },
+          groups,
+          stats: {
+            main: groups[0].count + groups[1].count + groups[2].count,
+            monster: groups[0].count,
+            spell: groups[1].count,
+            trap: groups[2].count,
+            extra: groups[3].count,
+          },
+        };
+        deckViewCache.set(key, v);
+        return v;
+      }
+      /* 卡牌详情栏（选卡组阶段无对局，直接展示卡面原始数值） */
+      function fillCardDetail(box, card) {
+        box.innerHTML = "";
+        if (!card) {
+          const e = document.createElement("div");
+          e.className = "ds-cd-empty";
+          e.textContent = "点击或悬停卡牌查看详情";
+          box.appendChild(e);
+          return;
+        }
+        box.appendChild(cardEl(card, { stats: card.type === "monster" ? { atk: card.atk, def: card.def } : null }));
+        const meta = document.createElement("div");
+        meta.className = "ds-cd-meta";
+        if (card.type === "monster")
+          meta.innerHTML = `<b>${card.name}</b>${card.attribute || ""} · ${card.race || ""} · 等级 ${card.level || "?"}${card.fusion ? " · 融合" : ""}<br>ATK <i>${card.atk ?? "?"}</i> / DEF <i>${card.def ?? "?"}</i>`;
+        else meta.innerHTML = `<b>${card.name}</b>${card.type === "spell" ? "魔法" : "陷阱"} · ${card.subtype || "通常"}`;
+        box.appendChild(meta);
+        if (card.text) {
+          const t = document.createElement("div");
+          t.className = "ds-cd-text";
+          t.textContent = card.text;
+          box.appendChild(t);
+        }
+      }
       function openDeckSelect() {
         const mask = $("modal-mask");
         const modal = $("modal");
         mask.dataset.gameover = "";
+        mask.dataset.hold = "1";
         mask.classList.add("show");
-        const presets = Object.keys(DECK_PRESETS);
-        let selMe = S.deckChoice,
-          selAi = S.aiDeckChoice;
+        modal.classList.add("ds-wide");
+        const sel = {
+          me: DECK_META[S.deckChoice] ? S.deckChoice : DECK_KEYS[0],
+          ai: DECK_META[S.aiDeckChoice] ? S.aiDeckChoice : DECK_KEYS[0],
+        };
+        let role = "me";
+        let pinned = null; // 点选固定的卡牌 id（悬停离开后回到该卡）
         modal.innerHTML = `<h3>选择卡组</h3>
-          <div class="pick-label">你的卡组</div><div class="pick-row" id="pick-me"></div>
-          <div class="pick-label">AI 的卡组</div><div class="pick-row" id="pick-ai"></div>
+          <div class="ds-hint">第 1 步：左侧点选你的卡组 → 第 2 步：切到「对手卡组」给 AI 选一套 → 底部选对手后开始对局。悬停中栏卡名可看单卡详情。</div>
+          <div class="ds-tabs">
+            <button type="button" class="ds-tab" data-role="me"><span>你的卡组</span><em id="ds-tab-me"></em></button>
+            <button type="button" class="ds-tab" data-role="ai"><span>对手卡组</span><em id="ds-tab-ai"></em></button>
+          </div>
+          <div class="ds-body">
+            <div class="ds-list" id="ds-list"></div>
+            <div class="ds-detail" id="ds-detail"></div>
+            <div class="ds-card" id="ds-card"></div>
+          </div>
           <div class="pick-label">对手</div>
           <div class="opp-row">
-            <button type="button" class="opp-opt" id="opp-ai">⚙ 内置 AI</button>
-            <button type="button" class="opp-opt" id="opp-llm">🤖 大模型</button>
+            <button type="button" class="opp-opt" id="opp-ai">内置 AI</button>
+            <button type="button" class="opp-opt" id="opp-llm">大模型</button>
           </div>
           <div class="llm-cfg" id="llm-cfg" style="display:none">
             <div class="cfg-grid">
@@ -726,44 +857,83 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
             <div class="cfg-note" id="llm-note"></div>
           </div>
           <div class="btns"><button class="btn ghost" id="deck-cancel">取消</button><button class="btn" id="deck-start">开始对局</button></div>`;
-        const buildRow = (elId, cur, onPick) => {
-          const row = $(elId);
-          for (const name of presets) {
-            const w = document.createElement("div");
-            w.className = "opt" + (name === cur ? " picked" : "");
-            const card = document.createElement("div");
-            card.className = "deck-tile";
-            const em = document.createElement("div");
-            em.className = "dt-em";
-            em.textContent = DECK_EMOJIS[name] || "🃏";
-            card.appendChild(em);
-            w.appendChild(card);
-            const lab = document.createElement("div");
-            lab.className = "opt-label";
-            lab.textContent = DECK_LABELS[name] || name;
-            w.appendChild(lab);
-            w.onclick = () => onPick(name, row);
-            row.appendChild(w);
+        const listEl = $("ds-list");
+        const detailEl = $("ds-detail");
+        const cardBox = $("ds-card");
+        const tabs = [...modal.querySelectorAll(".ds-tab")];
+        // 左栏：30 套列表只建一次，切换角色/选择时仅改高亮
+        for (const key of DECK_KEYS) {
+          const v = deckView(key);
+          const it = document.createElement("div");
+          it.className = "ds-item";
+          it.dataset.key = key;
+          it.innerHTML = `<span class="ds-item-name">${v.meta.name}</span><span class="ds-item-sub">怪兽 ${v.stats.monster} · 魔法 ${v.stats.spell} · 陷阱 ${v.stats.trap}${v.stats.extra ? " · 额外 " + v.stats.extra : ""}</span>`;
+          it.onclick = () => {
+            sel[role] = key;
+            pinned = null;
+            refresh();
+          };
+          listEl.appendChild(it);
+        }
+        // 中栏：卡组简介 + 分组卡表；右栏：卡牌详情（悬停预览、点击固定）
+        const renderDetail = (key) => {
+          const v = deckView(key);
+          detailEl.innerHTML = "";
+          const head = document.createElement("div");
+          head.className = "ds-head";
+          head.innerHTML = `<div class="ds-title">${v.meta.name}</div><div class="ds-stats">主卡组 ${v.stats.main} 张 · 怪兽 ${v.stats.monster} · 魔法 ${v.stats.spell} · 陷阱 ${v.stats.trap} · 额外卡组 ${v.stats.extra} 张</div><p class="ds-desc">${v.meta.desc}</p>`;
+          detailEl.appendChild(head);
+          const groupsEl = document.createElement("div");
+          groupsEl.className = "ds-groups";
+          for (const g of v.groups) {
+            if (!g.items.length) continue;
+            const ge = document.createElement("div");
+            ge.className = "ds-group";
+            const gt = document.createElement("div");
+            gt.className = "ds-group-title";
+            gt.textContent = `${g.title}（${g.count}）`;
+            ge.appendChild(gt);
+            for (const e of g.items) {
+              const c = e.card;
+              const row = document.createElement("div");
+              row.className = "ds-row " + c.type;
+              row.dataset.id = c.id;
+              const info = c.type === "monster" ? `${c.level || "?"} 星 · ${c.atk ?? "?"}/${c.def ?? "?"}` : c.subtype || "";
+              row.innerHTML = `<span class="ds-row-name">${c.name}</span><span class="ds-row-info">${info}</span><span class="ds-row-n">×${e.n}</span>`;
+              row.onmouseenter = () => fillCardDetail(cardBox, c);
+              row.onclick = () => {
+                pinned = pinned === c.id ? null : c.id;
+                groupsEl.querySelectorAll(".ds-row").forEach((r) => r.classList.toggle("picked", r.dataset.id === pinned));
+                fillCardDetail(cardBox, c);
+              };
+              ge.appendChild(row);
+            }
+            groupsEl.appendChild(ge);
           }
+          groupsEl.onmouseleave = () => {
+            if (pinned && CARD_BY_ID[pinned]) fillCardDetail(cardBox, CARD_BY_ID[pinned]);
+          };
+          detailEl.appendChild(groupsEl);
+          const first = v.groups.find((g) => g.items.length);
+          fillCardDetail(cardBox, first ? first.items[0].card : null);
         };
-        buildRow("pick-me", selMe, (name, row) => {
-          selMe = name;
-          row
-            .querySelectorAll(".opt")
-            .forEach((o) => o.classList.remove("picked"));
-          row
-            .querySelectorAll(".opt")
-            [presets.indexOf(name)].classList.add("picked");
+        const refresh = () => {
+          tabs.forEach((t) => t.classList.toggle("picked", t.dataset.role === role));
+          $("ds-tab-me").textContent = deckName(sel.me);
+          $("ds-tab-ai").textContent = deckName(sel.ai);
+          listEl.querySelectorAll(".ds-item").forEach((it) => it.classList.toggle("picked", it.dataset.key === sel[role]));
+          const cur = listEl.querySelector(".ds-item.picked");
+          if (cur) cur.scrollIntoView({ block: "nearest" });
+          renderDetail(sel[role]);
+        };
+        tabs.forEach((t) => {
+          t.onclick = () => {
+            role = t.dataset.role;
+            pinned = null;
+            refresh();
+          };
         });
-        buildRow("pick-ai", selAi, (name, row) => {
-          selAi = name;
-          row
-            .querySelectorAll(".opt")
-            .forEach((o) => o.classList.remove("picked"));
-          row
-            .querySelectorAll(".opt")
-            [presets.indexOf(name)].classList.add("picked");
-        });
+        refresh();
         // ---------- 对手模式（内置 AI / 大模型）与 LLM 配置面板 ----------
         const LLM = YGO_LLM;
         const cfgPanel = $("llm-cfg");
@@ -776,7 +946,7 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
             S.opponentMode === "llm"
               ? ready
                 ? "密钥仅存本地 localStorage；决策失败会自动回退内置 AI。"
-                : "⚠ 尚未配置 Base URL / 模型，开始对局后将全程使用内置 AI。"
+                : "注意：尚未配置 Base URL / 模型，开始对局后将全程使用内置 AI。"
               : "";
         };
         const refreshOppUI = () => {
@@ -844,17 +1014,28 @@ const stage = document.getElementById("stage"); // 显式获取（原先依赖 w
         };
         fillCfgForm();
         refreshOppUI();
-        $("deck-start").onclick = () => {
+        const close = () => {
           delete mask.dataset.gameover;
+          delete mask.dataset.hold;
           mask.classList.remove("show");
-          S.deckChoice = selMe;
-          S.aiDeckChoice = selAi;
+          modal.classList.remove("ds-wide");
+          modal.innerHTML = "";
+        };
+        $("deck-start").onclick = () => {
+          close();
+          S.deckChoice = sel.me;
+          S.aiDeckChoice = sel.ai;
           if (S.onAgain) S.onAgain();
         };
-        $("deck-cancel").onclick = () => {
-          delete mask.dataset.gameover;
-          mask.classList.remove("show");
-        };
+        const cancel = $("deck-cancel");
+        if (S.duel) {
+          cancel.onclick = () => {
+            close();
+            render(); // 对局中取消：恢复被搁置的待决弹窗
+          };
+        } else {
+          cancel.style.display = "none"; // 首次开局必须选完卡组才能进入
+        }
       }
 
 /* 新开局前的 HUD 复位（原 newGame 前半段） */
@@ -868,11 +1049,13 @@ function resetHud() {
   showPreview(null);
   const mask = $("modal-mask");
   delete mask.dataset.gameover;
+  delete mask.dataset.hold;
   mask.classList.remove("show");
+  $("modal").classList.remove("ds-wide");
   $("modal").innerHTML = "";
   $("log-panel").classList.remove("show");
   closeMenu();
   exitMode();
 }
 
-export { render, openMenu, closeMenu, pushLog, toast, openListModal, showHelp, showGameOver, openDeckSelect, enterAttackMode, startTribute, startPlace, exitMode, toggleTribute, resetHud };
+export { render, openMenu, closeMenu, pushLog, toast, openListModal, showHelp, showGameOver, openDeckSelect, enterAttackMode, startTribute, exitMode, toggleTribute, resetHud };

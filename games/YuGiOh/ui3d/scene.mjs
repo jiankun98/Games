@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { animate, cubicBezier } from "animejs";
 import { S, hiddenForMe } from "./store.mjs";
-import { ATTR_EM, RACE_EM } from "./labels.mjs";
+import { IC, ATTR_TXT } from "./labels.mjs";
 import { fxEl } from "./domfx.mjs";
 import { sfx } from "./sfx.mjs";
 import { handPlacementZones } from "./actions.mjs";
@@ -374,6 +374,33 @@ const $ = (id) => document.getElementById(id);
         roundRect(ctx, px(-6.3), pz(0) - 4, px(6.3) - px(-6.3), 8, 4);
         ctx.stroke();
         ctx.shadowBlur = 0;
+        // 外圈装饰：决斗盘整体的金细线边框 + 四角饰纹（仪式感框体）
+        {
+          const ox = px(-6.75),
+            ow = px(6.75) - ox;
+          const oz = pz(-5.1),
+            oh = pz(5.1) - oz;
+          strokeGlow("rgba(230,178,74,0.4)", 10);
+          ctx.lineWidth = 2.4;
+          roundRect(ctx, ox, oz, ow, oh, 18);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "rgba(233,190,105,0.75)";
+          ctx.lineWidth = 5;
+          const tick = 46; // 角部折线长度（px）
+          for (const [cx, cy, sx, sy] of [
+            [ox, oz, 1, 1],
+            [ox + ow, oz, -1, 1],
+            [ox, oz + oh, 1, -1],
+            [ox + ow, oz + oh, -1, -1],
+          ]) {
+            ctx.beginPath();
+            ctx.moveTo(cx + sx * tick, cy);
+            ctx.lineTo(cx, cy);
+            ctx.lineTo(cx, cy + sy * tick);
+            ctx.stroke();
+          }
+        }
         // 槽位金框：怪兽行较亮，魔陷/场地稍收敛；方形槽（≈槽距），竖放/横放守备卡都居中容纳
         const fw = LAYOUT.slotGap * PX * 0.94,
           fh = LAYOUT.slotGap * PX * 0.94;
@@ -521,7 +548,7 @@ const $ = (id) => document.getElementById(id);
           ctx.font = Math.round(r * 1.15) + "px serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(ATTR_EM[card.attribute] || "?", cx, cy + 1);
+          ctx.fillText(ATTR_TXT[card.attribute] || "?", cx, cy + 1);
           // 星级（徽章下方，右对齐；超过 5 星折行）
           ctx.textAlign = "right";
           ctx.font = Math.round(w * 0.048) + "px serif";
@@ -710,19 +737,17 @@ const $ = (id) => document.getElementById(id);
           glow.addColorStop(1, "rgba(255,255,255,0)");
           ctx.fillStyle = glow;
           ctx.fillRect(0, 0, TEX_W, TEX_H);
-          ctx.font = "150px serif";
+          // 无立绘占位：怪兽显示种族、魔陷显示类别（纯文字，字号随字数收缩以留在卡框内）
+          const label = isMon
+            ? (card.race || "怪兽").replace(/族$/, "")
+            : card.type === "spell"
+              ? "魔法"
+              : "陷阱";
+          ctx.font = Math.round(Math.min(150, (TEX_W * 0.82) / Math.max(1, label.length))) + "px serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillStyle = "rgba(0,0,0,0.55)";
-          ctx.fillText(
-            isMon
-              ? RACE_EM[card.race] || "★"
-              : card.type === "spell"
-                ? "✨"
-                : "🪤",
-            TEX_W / 2,
-            TEX_H * 0.42,
-          );
+          ctx.fillText(label, TEX_W / 2, TEX_H * 0.42);
           // 名字条 + 数值条
           drawCardOverlay(ctx, card, TEX_W, TEX_H);
         }
@@ -1380,165 +1405,15 @@ const $ = (id) => document.getElementById(id);
               count;
         }
       }
-      /* ===================== 3D LP 屏（嵌入式血条） =====================
-         各半场后侧立一块 CanvasTexture 显示屏：决斗者名 + LP 数字（滚动补间）+ 血条。
-         扣血红闪、行动方浮动强调；projectLp3D 供伤害浮字/特效定位。两屏均面向玩家侧可读。 */
-      const lpBoards = new Map(); // who -> { mesh, cv, ctx, tex, baseY, flashUntil, anim }
-      let lpActive = null; // 当前行动方（浮动强调）
-      const lpDisplay = { me: 8000, ai: 8000 }; // 屏上显示值（补间中间态）
-      function makeLpBoard(who) {
-        const cv = document.createElement("canvas");
-        cv.width = 640;
-        cv.height = 176;
-        const ctx = cv.getContext("2d");
-        const tex = new THREE.CanvasTexture(cv);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        const front = new THREE.MeshBasicMaterial({ map: tex });
-        const dark = new THREE.MeshBasicMaterial({ color: 0x1a2233 });
-        const mesh = new THREE.Mesh(
-          new THREE.BoxGeometry(4.3, 1.18, 0.08),
-          [dark, dark, dark, dark, front, dark],
-        );
-        const my = who === "me";
-        mesh.position.set(0, my ? 1.02 : 0.72, my ? 6.05 : -6.05);
-        // 两屏都朝玩家镜头（+z）；玩家屏更立起且抬高，避免被底部回合条遮挡
-        mesh.rotation.x = my ? -0.42 : -0.34;
-        mesh.castShadow = true;
-        scene.add(mesh);
-        const st = { mesh, cv, ctx, tex, baseY: my ? 1.02 : 0.72, flashUntil: 0, anim: null };
-        lpBoards.set(who, st);
-        drawLpBoard(who);
-        return st;
-      }
-      function drawLpBoard(who) {
-        const st = lpBoards.get(who);
-        if (!st) return;
-        const { ctx, cv } = st;
-        const W = cv.width,
-          H = cv.height;
-        const val = Math.round(lpDisplay[who]);
-        const pct = Math.max(
-          0,
-          Math.min(1, lpDisplay[who] / (S.startLP || 8000)),
-        );
-        const my = who === "me";
-        const flashing = performance.now() < st.flashUntil;
-        const active = lpActive === who;
-        ctx.clearRect(0, 0, W, H);
-        // 底板 + 阵营描边（行动方更亮）
-        const edge = my
-          ? `rgba(120,190,255,${active ? 0.95 : 0.6})`
-          : `rgba(255,122,110,${active ? 0.95 : 0.6})`;
-        strokeGlowStyle(ctx, edge, active ? 18 : 10);
-        ctx.lineWidth = 4;
-        roundRect(ctx, 8, 8, W - 16, H - 16, 20);
-        ctx.fillStyle = "rgba(13,17,28,0.95)";
-        ctx.fill();
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-        // 名字 + 行动方指示点
-        ctx.textAlign = "left";
-        ctx.textBaseline = "alphabetic";
-        ctx.font = "700 36px 'PingFang SC','Microsoft YaHei',sans-serif";
-        ctx.fillStyle = my ? "#a9cdf7" : "#f3b3ac";
-        ctx.fillText(my ? "玩家" : "AI", 34, 64);
-        if (active) {
-          ctx.beginPath();
-          ctx.fillStyle = my ? "#7cb8ff" : "#ff8d84";
-          ctx.arc(126, 52, 9, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        // LP 数字（扣血红闪）
-        ctx.textAlign = "right";
-        ctx.font = "800 54px 'Bahnschrift','DIN Alternate','Segoe UI',sans-serif";
-        ctx.fillStyle = flashing ? "#ff6a5e" : my ? "#cfe6ff" : "#ffe0db";
-        ctx.fillText(String(val), W - 34, 70);
-        // 血条
-        const bx = 34,
-          by = H - 52,
-          bw = W - 68,
-          bh = 22;
-        roundRect(ctx, bx, by, bw, bh, 11);
-        ctx.fillStyle = "rgba(255,255,255,0.09)";
-        ctx.fill();
-        if (pct > 0.002) {
-          roundRect(ctx, bx, by, Math.max(bw * pct, 14), bh, 11);
-          const g = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-          if (my) {
-            g.addColorStop(0, "#4a96ff");
-            g.addColorStop(1, "#7cc4ff");
-          } else {
-            g.addColorStop(0, "#e6544d");
-            g.addColorStop(1, "#ff9a8f");
-          }
-          ctx.fillStyle = flashing ? "#ff5f52" : g;
-          ctx.fill();
-        }
-        ctx.textAlign = "left";
-        ctx.font = "700 20px 'PingFang SC','Microsoft YaHei',sans-serif";
-        ctx.fillStyle = "rgba(230,235,245,0.55)";
-        ctx.fillText("LP", bx + 2, by - 8);
-        st.tex.needsUpdate = true;
-      }
-      function updateLP3D(who, val) {
-        if (!lpBoards.has(who)) makeLpBoard(who);
-        const st = lpBoards.get(who);
-        if (st.anim) {
-          try { st.anim.cancel(); } catch (e) {}
-        }
-        const from = lpDisplay[who];
-        if (val < from) st.flashUntil = performance.now() + 520;
-        if (val === from) {
-          drawLpBoard(who);
-          return;
-        }
-        // 数字滚动补间（与全局 anime 动画语言一致，不再一步跳变）
-        const proxy = { v: from };
-        st.anim = animate(proxy, {
-          v: val,
-          duration: 560,
-          ease: "outCubic",
-          onUpdate: () => {
-            lpDisplay[who] = proxy.v;
-            drawLpBoard(who);
-          },
-          onComplete: () => {
-            lpDisplay[who] = val;
-            drawLpBoard(who);
-          },
-        });
-        hot(700);
-      }
-      function setLpTurn3D(who) {
-        if (lpActive === who) return;
-        lpActive = who;
-        drawLpBoard("me");
-        drawLpBoard("ai");
-      }
-      function resetLp3D() {
-        lpDisplay.me = S.startLP || 8000;
-        lpDisplay.ai = S.startLP || 8000;
-        lpActive = null;
-        for (const [who, st] of lpBoards) {
-          if (st.anim) {
-            try { st.anim.cancel(); } catch (e) {}
-            st.anim = null;
-          }
-          st.flashUntil = 0;
-          drawLpBoard(who);
-        }
-      }
+      /* ===================== LP 显示（DOM 血条，见 hud.mjs / game3d.css） =====================
+         3D 悬浮屏方案因遮挡场上的卡废弃；仅保留伤害浮字的定位锚点（屏幕上/下缘中点）。 */
       function projectLp3D(who) {
-        const st = lpBoards.get(who);
-        if (st) return projectMesh(st.mesh);
         return {
           x: window.innerWidth / 2,
-          y: who === "ai" ? 60 : window.innerHeight - 80,
+          y: who === "ai" ? 64 : window.innerHeight - 108,
         };
       }
-      makeLpBoard("me");
-      makeLpBoard("ai");
+
 
       /* ===================== 动画系统（anime.js 统一驱动 3D + DOM） ===================== */
       // 说明：3D 对象用“代理状态对象”接入 anime（anime 管时间轴/缓动，onUpdate 写回 three 属性），
@@ -1800,6 +1675,7 @@ const $ = (id) => document.getElementById(id);
       const pointer = new THREE.Vector2();
       let hoveredMesh = null;
       let downPos = null;
+      const DEFAULT_HINT = "点击卡牌操作 · 拖手牌到场上召唤（Shift=覆盖 Ctrl=守备） · 拖拽平移视角 · 滚轮缩放 · 双击空白复位";
       // 输入判定阈值集中定义：位移超过 CLICK_SLOP 视为拖拽（不触发点击）；
       // 超过 DRAG_SLOP 才开始视角平移（容忍轻微手抖）；手牌拖拽召唤阈值更大以防误拖
       const CLICK_SLOP = 8;
@@ -1838,31 +1714,40 @@ const $ = (id) => document.getElementById(id);
       function dropHandCard(e) {
         const hd = handDrag;
         hd.mesh.userData.hover = false; // 复用 hover 放大效果，落手关闭
-        setZoneHighlight3D(null);
-        hot(600);
-        const g = pick(e);
+        hd.mesh.visible = false; // 被拖卡悬在落点正上方会挡住射线：判定时先隐藏
+        const g = pick(e); // 拾取落点（趁发光格与场上卡可见时判定）
+        hd.mesh.visible = true;
         const z = g && g.userData.zone;
-        if (
-          z &&
-          z.who === "me" &&
-          hd.zones &&
-          z.kind === hd.zones.kind &&
-          hd.zones.idxs.includes(z.idx)
-        ) {
-          const card = hd.mesh.userData.card;
-          if (hd.zones.kind === "monster") {
-            if (card.type === "monster" && (card.level || 0) >= 5) {
-              // 高星怪兽：转祭品模式（经 main 注入的桥接调用 hud.startTribute）
-              if (S.dragBridge) S.dragBridge.startTribute(hd.slot.idx);
-              else sync3D();
-              return;
-            }
-            S.duel.normalSummon(hd.slot.idx, z.idx, "atk");
-          } else {
-            S.duel.setSpellTrap(hd.slot.idx, z.idx);
-          }
-        } else {
+        setZoneHighlight3D(null);
+        setHint(DEFAULT_HINT);
+        hot(600);
+        // 落点：优先射线命中的格；被场上立卡挡住时退回磁吸高亮格（限 1.7 距离内，超出则弹回）
+        let hitIdx = null;
+        if (z && z.who === "me" && hd.zones && z.kind === hd.zones.kind && hd.zones.idxs.includes(z.idx)) {
+          hitIdx = z.idx;
+        } else if (hd.zones && hd.magnetKey) {
+          const idx = Number(hd.magnetKey.split(":")[1]);
+          if (hd.zones.idxs.includes(idx) && dragHit.distanceTo(slotPos("me", hd.zones.kind, idx)) <= 1.7)
+            hitIdx = idx;
+        }
+        if (hitIdx == null) {
           sync3D(); // 未落在可用格：弹回手牌位
+          return;
+        }
+        const card = hd.mesh.userData.card;
+        if (hd.zones.kind === "monster") {
+          if (card.type === "monster" && (card.level || 0) >= 5) {
+            // 高星怪兽：转祭品模式（经 main 注入的桥接调用 hud.startTribute）
+            if (S.dragBridge) S.dragBridge.startTribute(hd.slot.idx);
+            else sync3D();
+            return;
+          }
+          // 拖拽落位同时快速选表示形式：默认攻击，Shift=覆盖（里侧守备），Ctrl/Alt=表侧守备
+          if (e.shiftKey) S.duel.setMonster(hd.slot.idx, hitIdx);
+          else if (e.ctrlKey || e.altKey) S.duel.normalSummon(hd.slot.idx, hitIdx, "def");
+          else S.duel.normalSummon(hd.slot.idx, hitIdx, "atk");
+        } else {
+          S.duel.setSpellTrap(hd.slot.idx, hitIdx);
         }
       }
       const pickables = () =>
@@ -1927,6 +1812,7 @@ const $ = (id) => document.getElementById(id);
               handDrag.active = true;
               handDrag.mesh.userData.hover = true; // 复用 hover 放大，拖拽中读卡更清楚
               setZoneHighlight3D(handDrag.zones);
+              setHint("拖到发光格松手：攻击表示 · 按住 Shift=覆盖 · Ctrl=表侧守备");
               sfx("draw");
             }
           }
@@ -1969,13 +1855,11 @@ const $ = (id) => document.getElementById(id);
           g
             ? g.userData.key
               ? "堆:" + g.userData.key
-              : g.userData.zone && S.mode === "place"
-                ? "点击放置到此处"
-                : hiddenForMe(g.userData.card, g.userData.slot)
-                  ? g.userData.slot.kind === "hand"
-                    ? "对方的手牌"
-                    : "里侧卡牌"
-                  : g.userData.card
+              : hiddenForMe(g.userData.card, g.userData.slot)
+                ? g.userData.slot.kind === "hand"
+                  ? "对方的手牌"
+                  : "里侧卡牌"
+                : g.userData.card
                     ? "卡:" + g.userData.card.name
                     : "?"
             : "点击卡牌查看/操作",
@@ -2095,8 +1979,8 @@ const $ = (id) => document.getElementById(id);
       function renderLoop() {
         __lastFrame = performance.now();
         // 空闲早退：无动画、无交互且卡牌全部落位时跳过场景更新与渲染（最后一帧保留在画布上）
-        // （放置格脉冲/攻击目标呼吸/行动方 LP 屏浮动等常驻特效期间不早退）
-        const modeFx = zoneGlowActive || S.mode === "attack" || !!lpActive;
+        // （放置格脉冲/攻击目标呼吸等常驻特效期间不早退）
+        const modeFx = zoneGlowActive || S.mode === "attack";
         if (performance.now() > __hotUntil && !tween3DMap.size && !__anyUnsettled() && !modeFx)
           return;
         window.__renderCount = (window.__renderCount || 0) + 1; // 实际渲染计数（调试/性能排查用）
@@ -2167,12 +2051,6 @@ const $ = (id) => document.getElementById(id);
             if (sl && sl.who === "ai" && sl.kind === "monster" && g.userData.frontMat)
               g.userData.frontMat.color.setRGB(1, 0.42 + 0.22 * k, 0.36 + 0.2 * k);
           }
-        }
-        // LP 屏：行动方轻微浮动强调
-        if (lpActive) {
-          const dy = 0.045 + 0.045 * Math.sin(performance.now() * 0.0035);
-          for (const [who, st] of lpBoards)
-            st.mesh.position.y = st.baseY + (who === lpActive ? dy : 0);
         }
         // 堆标签投影（取整定位，避免亚像素抖动；文案仅变化时更新）
         for (const [key, g] of pileMeshes) {
@@ -2271,7 +2149,7 @@ const $ = (id) => document.getElementById(id);
       function fxGlow3D(card, color) {
         const p = projectCard3D(card.uid);
         if (!p) return;
-        fxEl(`<div class="fx-burst-txt">✨</div>`, p.x, p.y - 40, "fx-burst");
+        fxEl(`<div class="fx-burst-txt">${IC.spark}</div>`, p.x, p.y - 40, "fx-burst");
       }
       function fxAttack3D(attacker, target) {
         const ag = cardMeshes.get(attacker.uid);
@@ -2314,18 +2192,22 @@ const $ = (id) => document.getElementById(id);
         if (!p) p = projectLp3D(ev.damageTo || "ai");
         if (ev.direct)
           fxEl(
-            `<div class="fx-burst-txt">💥 直接攻击！</div>`,
+            `<div class="fx-burst-txt">直接攻击！</div>`,
             p.x,
             p.y - 54,
             "fx-burst",
           );
-        else
+        else {
+          // 受伤方若正是攻击怪兽的控制者，则为攻守差回弹的反伤
+          const side = S.duel && S.duel.state && S.duel.state[ev.damageTo];
+          const rebound = !!(side && ev.attacker && side.monsterZone.some((m) => m && m.uid === ev.attacker.uid));
           fxEl(
-            `<div class="fx-burst-txt">${ev.damageTo === "def" ? "💥" : "↩"}</div>`,
+            `<div class="fx-burst-txt">${rebound ? "反伤" : "命中"}</div>`,
             p.x,
             p.y - 30,
             "fx-burst",
           );
+        }
         if (dmg > 0)
           fxEl(`<b class="fx-dmg-txt">−${dmg}</b>`, p.x, p.y - 58, "fx-dmg");
         shakeBoard();
@@ -2338,8 +2220,83 @@ const $ = (id) => document.getElementById(id);
         burst3D(g.position.clone(), color || "#ffd24a", 12); // 碎屑
         sfx("destroy");
       }
+      /* 召唤 3D 特效：光柱 + 上升粒子 + 场景光脉冲。
+         临时特效对象登记进 fxTemp，用后即焚；resetScene3D 兜底清理防跨局残留。 */
+      const fxTemp = new Set();
+      function disposeFxTemp() {
+        for (const o of fxTemp) {
+          scene.remove(o);
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) o.material.dispose();
+        }
+        fxTemp.clear();
+      }
+      function fxSummonBeam(card) {
+        const g = cardMeshes.get(card.uid);
+        if (!g) return;
+        const p = g.userData.targetPos || g.position;
+        const beam = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.55, 0.78, 4.6, 18, 1, true),
+          new THREE.MeshBasicMaterial({
+            color: 0xe9be69,
+            transparent: true,
+            opacity: 0.4,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+          }),
+        );
+        beam.position.set(p.x, 2.1, p.z);
+        const N = 26;
+        const pos = new Float32Array(N * 3);
+        for (let i = 0; i < N; i++) {
+          const a = (i / N) * Math.PI * 2;
+          const r = 0.28 + (i % 3) * 0.17;
+          pos[i * 3] = p.x + Math.cos(a) * r;
+          pos[i * 3 + 1] = 0.15 + (i % 5) * 0.24;
+          pos[i * 3 + 2] = p.z + Math.sin(a) * r;
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        const pts = new THREE.Points(
+          geo,
+          new THREE.PointsMaterial({
+            color: 0xffe2a0,
+            size: 0.09,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          }),
+        );
+        pts.position.set(0, 0, 0);
+        scene.add(beam);
+        scene.add(pts);
+        fxTemp.add(beam).add(pts);
+        animate(beam.material, { opacity: [0.42, 0], duration: 640, ease: "outQuad" });
+        animate(beam.scale, { y: [0.4, 1.25], duration: 640, ease: "outCubic" });
+        animate(pts.material, { opacity: [0.9, 0], duration: 780, ease: "outQuad" });
+        animate(pts.position, {
+          y: [0, 1.5],
+          duration: 780,
+          ease: "outCubic",
+          onComplete: () => {
+            scene.remove(beam);
+            scene.remove(pts);
+            beam.geometry.dispose();
+            beam.material.dispose();
+            geo.dispose();
+            pts.material.dispose();
+            fxTemp.delete(beam);
+            fxTemp.delete(pts);
+          },
+        });
+        // 场景光脉冲：主光短暂提亮，强化"召唤瞬间"
+        animate(keyLight, { intensity: [2.3, 1.6], duration: 560, ease: "outQuad" });
+      }
       function fxSummon3D(card) {
         fxGlow3D(card, "#e6b24a");
+        fxSummonBeam(card);
         sfx("summon");
       }
       function fxPause(ms) {
@@ -2363,7 +2320,7 @@ const $ = (id) => document.getElementById(id);
       /* 重开局清理：清空 3D 场景并释放 GPU 资源（几何体/材质/纹理），避免显存累积 */
       function resetScene3D() {
         setZoneHighlight3D(null);
-        resetLp3D(); // LP 屏数值回满（屏体跨局复用）
+        disposeFxTemp(); // 召唤光柱等临时特效兜底清理
         for (const [, g] of cardMeshes) {
           scene.remove(g);
           disposeCardGroup(g);
@@ -2386,4 +2343,4 @@ const $ = (id) => document.getElementById(id);
       }
 
 export function debugPick(x, y) { return pick({ clientX: x, clientY: y }); }
-export { sync3D, resetScene3D, setClickHandler, projectMesh, projectCard3D, projectLp3D, updateLP3D, setLpTurn3D, fxGlow3D, fxSummon3D, fxAttack3D, fxImpact3D, fxBurst3D, tween3D, shakeBoard, cardMeshes, chipEls, artUrl, setZoneHighlight3D };
+export { sync3D, resetScene3D, setClickHandler, projectMesh, projectCard3D, projectLp3D, fxGlow3D, fxSummon3D, fxAttack3D, fxImpact3D, fxBurst3D, tween3D, shakeBoard, cardMeshes, chipEls, artUrl, setZoneHighlight3D };

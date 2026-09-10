@@ -22,3 +22,8 @@ games/legend/node_modules/
 games/legend/server/*.db
 games/legend/server/*.db-*
 games/legend/public/assets/sheets/
+
+# 胡莱三国·复刻版（Vite 依赖提交 dist；数据库不提交）
+games/hulai/node_modules/
+games/hulai/server/*.db
+games/hulai/server/*.db-*

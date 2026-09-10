@@ -1101,6 +1101,180 @@ const CARDS = [
                     condition: (self, ev, g) => ev.phase === "draw" && ev.player === g.playerOf(self) && !self.faceDown,
                     resolve: async (self, ev, g) => { g.payLp(g.playerOf(self), -500); } }
             ] } },
+    /* ========================= 纯血体系补充怪兽（按动漫/游戏设定补全各卡组正统阵容） ========================= */
+    /* ---------- 元素英雄（游城十代） ---------- */
+    { id: "ehero_neos", password: "89943723", name: "元素英雄 新宇侠", type: "monster", level: 7, attribute: "光", race: "战士族", atk: 2500, def: 2000, text: "从异次元归来的元素英雄。" },
+    { id: "ehero_woodsman", name: "元素英雄 森林侠", type: "monster", level: 4, attribute: "地", race: "战士族", atk: 1500, def: 1000, text: "自己的准备阶段：可将墓地1张「融合」加入手卡。", effect: {
+            triggers: [{ event: "phase_start", auto: true,
+                    condition: (self, ev, g) => ev.phase === "standby" && ev.player === g.playerOf(self) && self.location === "monster",
+                    acquireTargets: async (self, ev, g) => {
+                        const p = g.playerOf(self);
+                        const opts = g.graveyard(p).filter((c) => c.cid === "polymerization").map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("森林侠：将墓地1张「融合」加入手卡", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.findCard(t[0]);
+                        if (c) await g.addToHand(c, g.playerOf(self));
+                    } } }]
+        } },
+    { id: "ehero_necroshade", name: "元素英雄 暗影侠", type: "monster", level: 4, attribute: "暗", race: "战士族", atk: 1300, def: 800, text: "潜行于暗影之中的元素英雄。" },
+    { id: "ehero_shiningflarewingman", name: "元素英雄 闪耀火焰翼人", type: "monster", level: 8, attribute: "光", race: "战士族", atk: 2500, def: 2100, fusion: { materials: ["ehero_flamewingman", "ehero_sparkman"] }, text: "融合：火焰翼人+电光侠。攻击力上升自己墓地「元素英雄」数量×300，向守备表示怪兽攻击时给与贯穿伤害。", effect: {
+            continuous: (self, mon, g) => mon === self
+                ? { atkDelta: 300 * g.graveyard(g.playerOf(self)).filter((c) => c.cid && c.cid.startsWith("ehero_")).length, defDelta: 0 }
+                : { atkDelta: 0, defDelta: 0 },
+            triggers: [{ event: "damage_calc", auto: true,
+                    condition: (self, ev, g) => ev.attacker === self && !!ev.target && ev.target.position === "def" && g.stats(self).atk > g.stats(ev.target).def,
+                    resolve: async (self, ev, g) => { ev.damage = (ev.damage || 0) + g.stats(self).atk - g.stats(ev.target).def; } }]
+        } },
+    { id: "ehero_shiningphoenixenforcer", name: "元素英雄 辉炎近卫骑士", type: "monster", level: 8, attribute: "炎", race: "战士族", atk: 2600, def: 2100, fusion: { materials: ["ehero_burstinatrix", "ehero_bladedge"] }, text: "融合：爆裂女郎+刃锋侠。炽炎羽翼守护的近卫骑士。" },
+    { id: "ehero_mudballman", name: "元素英雄 泥球侠", type: "monster", level: 6, attribute: "水", race: "岩石族", atk: 1900, def: 3000, fusion: { materials: ["ehero_bubbleman", "ehero_clayman"] }, text: "融合：泡泡人+黏土侠。坚不可摧的泥墙卫士。" },
+    { id: "ehero_steamhealer", name: "元素英雄 蒸汽治疗侠", type: "monster", level: 6, attribute: "炎", race: "战士族", atk: 1800, def: 1400, fusion: { materials: ["ehero_burstinatrix", "ehero_bubbleman"] }, text: "融合：爆裂女郎+泡泡人。此卡战斗破坏怪兽送墓时，恢复那只怪兽攻击力数值的基本分。", effect: {
+            triggers: [{ event: "destroyed_by_battle", auto: true,
+                    condition: (self, ev) => ev.attacker === self,
+                    resolve: async (self, ev, g) => { g.payLp(g.playerOf(self), -(g.stats(ev.card).atk || 0)); } }]
+        } },
+    { id: "ehero_necroidshaman", name: "元素英雄 死灵侠", type: "monster", level: 6, attribute: "暗", race: "战士族", atk: 1900, def: 400, fusion: { materials: ["ehero_burstinatrix", "ehero_clayman"] }, text: "融合：爆裂女郎+黏土侠。操纵死灵的咒术英雄。" },
+    { id: "ehero_mariner", name: "元素英雄 水手侠", type: "monster", level: 5, attribute: "水", race: "战士族", atk: 1400, def: 1000, fusion: { materials: ["ehero_bubbleman", "ehero_wildheart"] }, text: "融合：泡泡人+荒野侠。驰骋大海的航海英雄。" },
+    { id: "ehero_wildwingman", name: "元素英雄 荒野翼人", type: "monster", level: 8, attribute: "风", race: "兽战士族", atk: 1900, def: 2300, fusion: { materials: ["ehero_wildheart", "ehero_stratos"] }, text: "融合：荒野侠+天空侠。丢弃1张手卡：破坏场上1张魔法/陷阱卡。", effect: {
+            triggers: [{ event: "manual", auto: false,
+                    condition: (self, ev, g) => self.location === "monster",
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = [...g.spells("me"), ...g.spells("ai"), g.field("me"), g.field("ai")].filter((c) => !!c).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("荒野翼人：选择1张魔陷卡破坏", opts, 1);
+                    },
+                    cost: async (self, ev, g) => { await g.discard(g.playerOf(self), 1); },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.findCard(t[0]);
+                        if (c) await g.destroyST(c);
+                    } } }]
+        } },
+    /* ---------- 黑魔术师（武藤游戏） ---------- */
+    { id: "skilledblackmagician", name: "熟练的黑魔术师", type: "monster", level: 4, attribute: "暗", race: "魔法师族", atk: 500, def: 1500, text: "积累魔法的年轻见习魔术师。" },
+    { id: "breaker", password: "44151075", name: "破坏剑士", type: "monster", level: 4, attribute: "地", race: "魔法师族", atk: 1600, def: 1000, text: "此卡召唤·特殊召唤成功时：可以破坏场上1张魔法/陷阱卡。", effect: {
+            triggers: [{ event: "summon", auto: true,
+                    condition: (self, ev) => ev.monster === self,
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = [...g.spells("me"), ...g.spells("ai"), g.field("me"), g.field("ai")].filter((c) => !!c).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("破坏剑士：选择1张魔陷卡破坏", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.findCard(t[0]);
+                        if (c) await g.destroyST(c);
+                    } } }]
+        } },
+    { id: "magicianvalkyria", name: "魔术师女武神", type: "monster", level: 4, attribute: "光", race: "魔法师族", atk: 1600, def: 1800, text: "以高雅舞姿守护魔术师一族的女武神。" },
+    { id: "apprenticemagician", name: "见习魔术师", type: "monster", level: 2, attribute: "暗", race: "魔法师族", atk: 400, def: 800, text: "此卡从场上送墓时：可从卡组特殊召唤1只2星以下的魔法师族怪兽。", effect: {
+            triggers: [{ event: "sent_to_grave", auto: true,
+                    condition: (self, ev) => ev.card === self && ev.from === "field",
+                    acquireTargets: async (self, ev, g) => {
+                        const p = g.playerOf(self);
+                        const opts = g.deck(p).filter((c) => c.type === "monster" && c.race === "魔法师族" && (c.level || 0) <= 2).slice(0, 6).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("见习魔术师：从卡组特殊召唤1只2星以下魔法师族", opts, 1);
+                    },
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const c = g.findCard(t[0]);
+                        if (c) await g.specialSummon(c, g.playerOf(self), "atk", "deck");
+                    } } }]
+        } },
+    /* ---------- 电子龙（丸藤亮） ---------- */
+    { id: "cyberend", password: "15471265", name: "电子终结龙", type: "monster", level: 10, attribute: "光", race: "机械族", atk: 4000, def: 2800, fusion: { materials: ["cyberdragon", "cyberdragon", "cyberdragon"] }, text: "融合：电子龙×3。三头连携的终结兵器，向守备表示怪兽攻击时给与贯穿伤害。", effect: {
+            triggers: [{ event: "damage_calc", auto: true,
+                    condition: (self, ev, g) => ev.attacker === self && !!ev.target && ev.target.position === "def" && g.stats(self).atk > g.stats(ev.target).def,
+                    resolve: async (self, ev, g) => { ev.damage = (ev.damage || 0) + g.stats(self).atk - g.stats(ev.target).def; } }]
+        } },
+    { id: "cyberphoenix", name: "电子凤凰", type: "monster", level: 4, attribute: "光", race: "机械族", atk: 1200, def: 1600, text: "翱翔天际、守护机械群的钢铁不死鸟。" },
+    { id: "ydragonhead", name: "Y-龙头", type: "monster", level: 4, attribute: "光", race: "机械族", atk: 1600, def: 1000, text: "龙头型机械部件怪兽。" },
+    { id: "zmetaltank", name: "Z-金属坦克", type: "monster", level: 4, attribute: "光", race: "机械族", atk: 1500, def: 1300, text: "坦克型机械部件怪兽。" },
+    /* ---------- 古代机械（克罗诺斯） ---------- */
+    { id: "ancientgearbeast", name: "古代机械兽", type: "monster", level: 6, attribute: "地", race: "机械族", atk: 2000, def: 2000, text: "古代文明铸造的机械猛兽。" },
+    { id: "ancientgearsoldier", name: "古代机械士兵", type: "monster", level: 4, attribute: "地", race: "机械族", atk: 1300, def: 1300, text: "古代机械军团的先锋士兵。" },
+    { id: "geargolem", name: "移动要塞 钢铁堡", type: "monster", level: 4, attribute: "地", race: "机械族", atk: 800, def: 1800, text: "巨大的钢铁移动要塞。" },
+    /* ---------- 龙族（海马） ---------- */
+    { id: "tyrantdragon", name: "暴君龙", type: "monster", level: 7, attribute: "炎", race: "龙族", atk: 2900, def: 2500, text: "以烈焰称霸天空的暴君之龙。" },
+    { id: "lusterdragon", name: "宝石龙", type: "monster", level: 4, attribute: "风", race: "龙族", atk: 1900, def: 1000, text: "身覆宝石鳞片的巨龙。" },
+    { id: "thunderdragon", name: "雷龙", type: "monster", level: 5, attribute: "光", race: "雷族", atk: 1600, def: 1500, text: "手中蕴藏惊雷的巨龙。" },
+    { id: "alexandritedragon", name: "亚历山大龙", type: "monster", level: 4, attribute: "光", race: "龙族", atk: 2000, def: 100, text: "身披翠绿宝石鳞的骄傲之龙。" },
+    { id: "decoydragon", name: "诱饵龙", type: "monster", level: 2, attribute: "炎", race: "龙族", atk: 300, def: 200, text: "以小小身躯诱敌的幼龙。" },
+    /* ---------- 恶魔族 ---------- */
+    { id: "darkrulerhades", name: "冥界魔王 哈·迪斯", type: "monster", level: 6, attribute: "暗", race: "恶魔族", atk: 2450, def: 2460, text: "君临冥界的黑暗支配者。" },
+    { id: "archfiendsoldier", name: "恶魔士兵", type: "monster", level: 4, attribute: "暗", race: "恶魔族", atk: 1900, def: 1500, text: "历经百战的恶魔精锐。" },
+    { id: "skullarchfiend", name: "迅雷之魔王", type: "monster", level: 6, attribute: "暗", race: "恶魔族", atk: 2500, def: 1200, text: "操纵闪电的骷髅魔王。" },
+    { id: "infernalqueen", name: "地狱女王", type: "monster", level: 4, attribute: "暗", race: "恶魔族", atk: 900, def: 1500, text: "统率恶魔军势的地狱女王。" },
+    { id: "newdoria", name: "涅多利亚", type: "monster", level: 4, attribute: "暗", race: "恶魔族", atk: 1200, def: 400, text: "徘徊于冥河之畔的恶鬼。" },
+    /* ---------- 帝王 ---------- */
+    { id: "zaborg", name: "雷帝 扎博尔格", type: "monster", level: 5, attribute: "光", race: "雷族", atk: 2400, def: 1000, text: "此卡召唤·特殊召唤成功时：可以破坏场上1只怪兽。", effect: {
+            triggers: [{ event: "summon", auto: true,
+                    condition: (self, ev) => ev.monster === self,
+                    acquireTargets: async (self, ev, g) => pickMonsters(g, "雷帝：选择1只怪兽破坏", (m) => m !== self, 1),
+                    resolve: async (self, ev, g, t) => { if (t && t[0]) {
+                        const m = g.findCard(t[0]);
+                        if (m) await g.destroy(m);
+                    } } }]
+        } },
+    { id: "mobius", name: "冰帝 梅比乌斯", type: "monster", level: 5, attribute: "水", race: "水族", atk: 2400, def: 1000, text: "此卡召唤·特殊召唤成功时：可以破坏场上最多2张魔法/陷阱卡。", effect: {
+            triggers: [{ event: "summon", auto: true,
+                    condition: (self, ev) => ev.monster === self,
+                    acquireTargets: async (self, ev, g) => {
+                        const opts = [...g.spells("me"), ...g.spells("ai"), g.field("me"), g.field("ai")].filter((c) => !!c).map((c) => ({ value: c.uid, label: c.name, card: c }));
+                        if (!opts.length) return null;
+                        return g.askTargets("冰帝：选择最多2张魔陷卡破坏", opts, Math.min(2, opts.length));
+                    },
+                    resolve: async (self, ev, g, t) => { for (const uid of t || []) {
+                        const c = g.findCard(uid);
+                        if (c) await g.destroyST(c);
+                    } } }]
+        } },
+    { id: "thestalos", name: "炎帝 特斯塔罗斯", type: "monster", level: 5, attribute: "炎", race: "炎族", atk: 2400, def: 1000, text: "此卡召唤·特殊召唤成功时：给与对方基本分对方手卡数量×100的伤害。", effect: {
+            triggers: [{ event: "summon", auto: true,
+                    condition: (self, ev) => ev.monster === self,
+                    resolve: async (self, ev, g) => {
+                        const p = g.playerOf(self);
+                        await g.damage(g.opponent(p), 100 * g.hand(g.opponent(p)).length, "effect");
+                    } }]
+        } },
+    { id: "granmarg", name: "岩帝 格拉马格", type: "monster", level: 5, attribute: "地", race: "岩石族", atk: 2400, def: 1000, text: "以岩盘之躯君临大地的岩石帝王。" },
+    { id: "raiza", name: "风帝 莱扎", type: "monster", level: 6, attribute: "风", race: "鸟兽族", atk: 2400, def: 1000, text: "御风而行的风暴帝王。" },
+    /* ---------- 不死族 ---------- */
+    { id: "undeadwarrior", name: "不死战士", type: "monster", level: 3, attribute: "地", race: "不死族", atk: 1300, def: 1000, text: "死后仍执剑而战的不死剑士。" },
+    { id: "skullservant", name: "白骨", type: "monster", level: 1, attribute: "暗", race: "不死族", atk: 300, def: 200, text: "弱小却纠缠不休的骷髅。" },
+    { id: "zombyra", name: "暗黑僵尸兵", type: "monster", level: 4, attribute: "暗", race: "不死族", atk: 2100, def: 500, text: "只为战斗而存的暗黑亡者。" },
+    { id: "vampirelady", name: "吸血鬼淑女", type: "monster", level: 4, attribute: "暗", race: "不死族", atk: 1550, def: 1550, text: "优雅啜饮鲜血的吸血鬼贵妇。" },
+    { id: "goblinzombie", name: "哥布林僵尸", type: "monster", level: 4, attribute: "暗", race: "不死族", atk: 1100, def: 1050, text: "蹒跚行走的僵尸哥布林。" },
+    /* ---------- 天使族（光） ---------- */
+    { id: "shiningangel", name: "光辉天使", type: "monster", level: 4, attribute: "光", race: "天使族", atk: 1400, def: 1000, text: "手持光之弓的天界战士。" },
+    { id: "airknightparshath", name: "空中骑士 帕拉修斯", type: "monster", level: 5, attribute: "光", race: "天使族", atk: 1900, def: 1400, text: "向守备表示怪兽攻击时给与贯穿伤害。", effect: {
+            triggers: [{ event: "damage_calc", auto: true,
+                    condition: (self, ev, g) => ev.attacker === self && !!ev.target && ev.target.position === "def" && g.stats(self).atk > g.stats(ev.target).def,
+                    resolve: async (self, ev, g) => { ev.damage = (ev.damage || 0) + g.stats(self).atk - g.stats(ev.target).def; } }]
+        } },
+    { id: "zolga", name: "佐尔加", type: "monster", level: 4, attribute: "光", race: "天使族", atk: 1200, def: 800, text: "献身于光的善良天使。" },
+    { id: "marie", name: "堕天使 玛丽", type: "monster", level: 5, attribute: "暗", race: "天使族", atk: 1700, def: 1200, text: "自己的准备阶段：给与对方200点伤害。", effect: {
+            triggers: [{ event: "phase_start", auto: true,
+                    condition: (self, ev, g) => ev.phase === "standby" && ev.player === g.playerOf(self) && self.location === "monster",
+                    resolve: async (self, ev, g) => { await g.damage(g.opponent(g.playerOf(self)), 200, "effect"); } }]
+        } },
+    /* ---------- 兽战士族 ---------- */
+    { id: "alligatorsword", name: "鳄鱼剑士", type: "monster", level: 4, attribute: "地", race: "兽战士族", atk: 1500, def: 1200, text: "挥舞弯刀的鳄鱼剑客。" },
+    { id: "gazelle", name: "幻兽王 加泽尔", type: "monster", level: 4, attribute: "地", race: "兽战士族", atk: 1500, def: 1200, text: "疾驰于草原的幻兽之王。" },
+    /* ---------- 战士族 ---------- */
+    { id: "gearfried", name: "铁骑士 吉亚弗里德", type: "monster", level: 4, attribute: "地", race: "战士族", atk: 1800, def: 1600, text: "浑身缠绕锁链的铁血骑士。" },
+    { id: "amazonessqueen", name: "亚马逊女王", type: "monster", level: 6, attribute: "地", race: "战士族", atk: 2400, def: 1500, text: "统率亚马逊战团的勇武女王。" },
+    /* ---------- 水属性 ---------- */
+    { id: "sevencolorfish", name: "七色鲸", type: "monster", level: 4, attribute: "水", race: "鱼族", atk: 1800, def: 800, text: "鳞片折射七色光泽的巨鱼。" },
+    { id: "suijin", name: "水精灵 苏伊金", type: "monster", level: 6, attribute: "水", race: "水族", atk: 2500, def: 1200, text: "守护圣域的水之精灵。" },
+    { id: "aquamadoor", name: "水魔道士", type: "monster", level: 4, attribute: "水", race: "魔法师族", atk: 1200, def: 2000, text: "操纵水流的高阶魔术师。" },
+    { id: "gogigagagagigo", name: "深海的加吉戈", type: "monster", level: 8, attribute: "水", race: "爬虫类族", atk: 2950, def: 2800, text: "在深海中完成进化的巨怪。" },
+    /* ---------- 岩石族 ---------- */
+    { id: "giantsoldierofstone", name: "巨石人", type: "monster", level: 3, attribute: "地", race: "岩石族", atk: 1300, def: 2000, text: "沉默守立的巨大石像兵。" },
+    { id: "rockogre", name: "岩石食人魔", type: "monster", level: 4, attribute: "地", race: "岩石族", atk: 800, def: 1200, text: "由岩块凝成的粗野食人魔。" },
+    /* ---------- 炎属性 ---------- */
+    { id: "blazinginpachi", name: "燃烧的因帕奇", type: "monster", level: 4, attribute: "炎", race: "炎族", atk: 1850, def: 0, text: "全身燃烧的巨大树妖。" },
+    { id: "flamemanipulator", name: "炎之魔术师", type: "monster", level: 3, attribute: "炎", race: "魔法师族", atk: 900, def: 1200, text: "操纵火焰的年轻魔术师。" },
+    { id: "firekraken", name: "火焰克拉肯", type: "monster", level: 4, attribute: "炎", race: "水族", atk: 1600, def: 1000, text: "缠绕烈焰的巨大章鱼。" },
 ];
 const CARD_BY_ID = Object.fromEntries(CARDS.map((c) => [c.id, c]));
 // 卡组预设：经典 / 元素英雄(游城十代) / 机械族

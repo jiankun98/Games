@@ -95,6 +95,14 @@ try {
   console.warn("  [legend] 传奇后端加载失败：" + ((e && e.message) || e));
 }
 
+// 胡莱三国后端：账号 / 云存档（SQLite 存 games/hulai/server/hulai.db）
+try {
+  const hulaiRouter = require("../games/hulai/server/router.cjs");
+  app.use("/api/hulai", hulaiRouter);
+} catch (e) {
+  console.warn("  [hulai] 胡莱三国后端加载失败：" + ((e && e.message) || e));
+}
+
 // 图片代理：3D 游戏王立绘等外域图片（Canvas 纹理必须同源，故本地代理）
 // 仅允许 https 且域名白名单，防止 SSRF
 const IMG_HOSTS = new Set(["images.ygoprodeck.com"]);

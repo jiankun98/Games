@@ -1,0 +1,8 @@
+  [hulai] 胡莱三国后端加载失败：Cannot find module '../games/hulai/server/router.cjs'
+Require stack:
+- D:\project\Games\run\game.js
+(node:27508) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  游戏主页: http://localhost:5173/index.html
+  代理接口: POST /api/llm  GET /api/img
+  手机访问(传奇觉醒): http://10.10.8.3:5173/games/legend/

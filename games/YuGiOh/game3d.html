@@ -25,14 +25,40 @@
 
     <div class="board" id="board">
       <div class="stage" id="stage">
-        <div class="hint3d">点击卡牌操作 · 拖手牌到场上可直接召唤 · 拖拽平移视角 · 滚轮缩放 · 双击空白复位</div>
+        <div class="hint3d">点击卡牌操作 · 拖手牌到场上召唤（Shift=覆盖 Ctrl=守备） · 拖拽平移视角 · 滚轮缩放 · 双击空白复位</div>
       </div>
-      <div class="turn-bar" id="turn-bar">
-        <div class="tb-phase">
-          <div class="tb-tip" id="tb-tip">—</div>
+      <!-- 对角玩家盒：名字/LP/卡组/墓地聚合，悬浮于 3D 场之上（AI 右上 · 玩家左下） -->
+      <div class="player-box lp-row ai" id="lp-row-ai">
+        <div class="pb-head">
+          <span class="lp-name ai"><i class="lp-ic" data-ic="lp"></i>AI</span>
+          <span class="pb-tag">对手</span>
         </div>
-        <button class="tb-btn primary" id="tb-main">⚔ 进入战斗</button>
-        <button class="tb-btn" id="tb-end">▶ 结束回合</button>
+        <div class="pb-lp">
+          <div class="lp-bar" id="lp-ai-bar"><div class="lp-fill ai" id="lp-ai-fill"></div></div>
+          <span class="lp-val" id="lp-ai">8000</span>
+        </div>
+        <div class="pb-meta"><span>卡组 <b id="ai-deck-count">40</b></span><span>墓地 <b id="ai-grave-count">0</b></span></div>
+      </div>
+      <div class="player-box lp-row me" id="lp-row-me">
+        <div class="pb-head">
+          <span class="lp-name me"><i class="lp-ic" data-ic="lp"></i>玩家</span>
+          <span class="pb-tag">你</span>
+        </div>
+        <div class="pb-lp">
+          <div class="lp-bar" id="lp-me-bar"><div class="lp-fill me" id="lp-me-fill"></div></div>
+          <span class="lp-val" id="lp-me">8000</span>
+        </div>
+        <div class="pb-meta"><span>卡组 <b id="me-deck-count">40</b></span><span>墓地 <b id="me-grave-count">0</b></span></div>
+      </div>
+      <!-- 阶段轨道：右缘竖排 -->
+      <div class="phase-track" id="phase-track"></div>
+      <!-- 操作按钮簇：右下（手牌侧上方） -->
+      <div class="action-cluster" id="turn-bar">
+        <div class="tb-tip" id="tb-tip">—</div>
+        <div class="ac-btns">
+          <button class="tb-btn primary" id="tb-main">进入战斗</button>
+          <button class="tb-btn" id="tb-end">结束回合</button>
+        </div>
       </div>
     </div>
 
@@ -41,7 +67,7 @@
     <div class="atk-overlay" id="atk-overlay"></div>
     <div class="notify-stack">
       <div class="chain-banner" id="chain-banner"></div>
-      <div class="llm-think" id="llm-think"><span class="tdot"></span>🤖 大模型思考中…</div>
+      <div class="llm-think" id="llm-think"><span class="tdot"></span>大模型思考中…</div>
       <div class="event-notify" id="event-notify"><span class="en-ic"></span><span class="en-tx"></span></div>
     </div>
     <div class="log-panel" id="log-panel">

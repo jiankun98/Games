@@ -13,21 +13,21 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 1. dragon 龙族霸主 ---------- */
   dragon: {
     main: [
-      // 高星怪 8
+      // 高星龙 6
       "blueyes", "blueyes", "blueyes",
       "redeyes", "redeyes", "redeyes",
-      "summonedskull", "summonedskull",
-      // 龙族/相关低星 13
+      // 中坚龙 13
+      "tyrantdragon", "tyrantdragon", "tyrantdragon",
+      "lusterdragon", "lusterdragon", "lusterdragon",
+      "alexandritedragon", "alexandritedragon", "alexandritedragon",
       "speardragon", "speardragon", "speardragon",
-      "lordofdragons", "lordofdragons",
-      "kaibaman", "kaibaman",
-      "meteor", "meteor",
       "harpiespet",
-      "witch", "sangan",
-      // 泛用低星 11
-      "celtic", "celtic", "gemini", "gemini", "lajinn", "lajinn",
-      "kuriboh", "kuriboh", "exiled", "mysticalelf", "mysticalelf",
-      "magicianoffaith",
+      // 龙族支援 13
+      "meteor", "meteor", "meteor",
+      "lordofdragons", "lordofdragons", "lordofdragons",
+      "kaibaman", "kaibaman",
+      "thunderdragon", "thunderdragon", "thunderdragon",
+      "decoydragon", "decoydragon",
       // 魔法 18
       "flute", "flute", "burststream", "burststream", "stamping",
       "silvercry", "silvercry", "ancientrules",
@@ -44,20 +44,19 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 2. fiend 恶魔军团 ---------- */
   fiend: {
     main: [
-      // 高星怪 7
+      // 高星恶魔 5
       "summonedskull", "summonedskull", "summonedskull",
-      "despair", "despair",
-      "darkmagician", "darkmagician",
-      // 恶魔/暗属性低星 17
+      "darkrulerhades", "darkrulerhades",
+      // 恶魔族 27（无其他怪兽）
+      "archfiendsoldier", "archfiendsoldier", "archfiendsoldier",
+      "skullarchfiend", "skullarchfiend", "skullarchfiend",
+      "infernalqueen", "infernalqueen", "infernalqueen",
+      "newdoria", "newdoria", "newdoria",
+      "despair", "despair", "despair",
       "lajinn", "lajinn", "lajinn",
-      "witch", "witch", "witch",
       "sangan", "sangan", "sangan",
       "giantgerm", "giantgerm", "giantgerm",
       "kuriboh", "kuriboh", "kuriboh",
-      "oldvindictive", "oldvindictive",
-      // 泛用低星 8
-      "yomiship", "penguin", "maneater", "maneater",
-      "exiled", "mysticalelf", "gemini", "gemini",
       // 魔法 18
       "yami", "yami",
       "raigeki", "darkhole", "mst", "mst", "monsterreborn",
@@ -74,21 +73,20 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 3. spellcaster 魔导院 ---------- */
   spellcaster: {
     main: [
-      // 高星怪 6
+      // 高星魔法师 5
       "darkmagician", "darkmagician", "darkmagician",
       "darkmagiciangirl", "darkmagiciangirl",
-      "summonedskull",
-      // 魔法师族低星 17
+      // 魔法师族 27（无其他怪兽）
+      "skilledwhitemagician", "skilledwhitemagician", "skilledwhitemagician",
+      "skilledblackmagician", "skilledblackmagician", "skilledblackmagician",
+      "breaker", "breaker", "breaker",
+      "magicianvalkyria", "magicianvalkyria", "magicianvalkyria",
+      "apprenticemagician", "apprenticemagician", "apprenticemagician",
       "gemini", "gemini", "gemini",
       "mysticalelf", "mysticalelf", "mysticalelf",
       "witch", "witch", "witch",
-      "oldvindictive", "oldvindictive",
       "magicianoffaith", "magicianoffaith",
-      "skilledwhitemagician", "skilledwhitemagician", "skilledwhitemagician",
-      "lordofdragons",
-      // 泛用低星 9
-      "sangan", "sangan", "kuriboh", "kuriboh",
-      "exiled", "maneater", "lajinn", "lajinn", "penguin",
+      "oldvindictive",
       // 魔法 18
       "thousandknives", "thousandknives",
       "darkmagicattack", "darkmagicattack",
@@ -107,21 +105,18 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 4. beastwarrior 野兽战士 ---------- */
   beastwarrior: {
     main: [
-      // 高星怪 6
-      "gaia", "gaia",
-      "ehero_bladedge", "ehero_bladedge",
-      "swordstalker", "swordstalker",
-      // 兽战士/战士低星 17
+      // 兽战士/战士 32（无其他怪兽）
       "battleox", "battleox", "battleox",
       "goblin", "goblin", "goblin",
+      "alligatorsword", "alligatorsword", "alligatorsword",
+      "gazelle", "gazelle", "gazelle",
       "ehero_wildheart", "ehero_wildheart", "ehero_wildheart",
-      "amazoness", "amazoness",
+      "ehero_bladedge", "ehero_bladedge", "ehero_bladedge",
+      "commandknight", "commandknight", "commandknight",
+      "maraudingcaptain", "maraudingcaptain", "maraudingcaptain",
       "warriordai", "warriordai",
-      "commandknight", "commandknight",
-      "maraudingcaptain", "maraudingcaptain",
-      // 泛用低星 9
       "celtic", "celtic", "celtic",
-      "axe", "axe", "exiled", "sangan", "kuriboh", "kuriboh",
+      "axe", "axe", "axe",
       // 魔法 18
       "reinforcement", "reinforcement",
       "warriorreturning", "warriorreturning",
@@ -171,26 +166,23 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 6. water 深海军团 ---------- */
   water: {
     main: [
-      // 高星怪 3
-      "redeyes", "summonedskull", "gaia",
-      // 水属性核心 12
+      // 水属性 21（无其他怪兽）
       "penguin", "penguin", "penguin",
       "yomiship", "yomiship", "yomiship",
       "sinisterserpent", "sinisterserpent", "sinisterserpent",
       "ehero_bubbleman", "ehero_bubbleman", "ehero_bubbleman",
-      // 泛用低星 17
-      "witch", "witch", "witch",
-      "sangan", "sangan", "sangan",
-      "kuriboh", "kuriboh",
-      "magicianoffaith", "magicianoffaith",
-      "oldvindictive", "oldvindictive",
-      "mysticalelf", "mysticalelf",
-      "exiled", "maneater", "stone",
-      // 魔法 18
+      "sevencolorfish", "sevencolorfish", "sevencolorfish",
+      "suijin", "suijin", "suijin",
+      "aquamadoor", "aquamadoor",
+      "gogigagagagigo",
+      // 魔法 29
       "raigeki", "darkhole", "mst", "mst", "mst", "monsterreborn",
-      "potofgreed", "potofgreed", "gracefulcharity", "changeofheart",
-      "fissure", "fissure", "smashing", "swords", "swords",
-      "magepower", "united", "forest",
+      "potofgreed", "potofgreed", "potofgreed", "gracefulcharity",
+      "gracefulcharity", "changeofheart", "changeofheart",
+      "fissure", "fissure", "fissure", "smashing", "smashing",
+      "swords", "swords", "swords",
+      "magepower", "magepower", "united", "united", "forest",
+      "axeofdespair", "blackpendant", "gianttrunade",
       // 陷阱 10
       "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu",
       "magiccylinder", "waboku", "waboku", "torrential", "bottomless",
@@ -201,24 +193,23 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 7. rock 岩石堡垒 ---------- */
   rock: {
     main: [
-      // 高星怪 3
-      "valkyrion", "valkyrion", "ancientgeargolem",
-      // 岩石核心 15
+      // 岩石族 25（无其他怪兽）
       "magnet_alpha", "magnet_alpha", "magnet_alpha",
       "magnet_beta", "magnet_beta", "magnet_beta",
       "magnet_gamma", "magnet_gamma", "magnet_gamma",
       "magnet_delta", "magnet_delta", "magnet_delta",
       "stone", "stone", "stone",
-      // 泛用低星 14
-      "ehero_clayman", "ehero_clayman",
-      "witch", "witch", "sangan", "sangan",
-      "kuriboh", "kuriboh", "exiled", "mysticalelf",
-      "maneater", "oldvindictive", "oldvindictive", "penguin",
-      // 魔法 18
+      "giantsoldierofstone", "giantsoldierofstone", "giantsoldierofstone",
+      "rockogre", "rockogre", "rockogre",
+      "ehero_clayman", "ehero_clayman", "ehero_clayman",
+      "valkyrion", "valkyrion",
+      // 魔法 25
       "raigeki", "darkhole", "mst", "mst", "monsterreborn",
       "potofgreed", "potofgreed", "gracefulcharity", "changeofheart",
       "fissure", "smashing", "smashing", "swords", "swords",
-      "axeofdespair", "axeofdespair", "magepower", "united",
+      "axeofdespair", "axeofdespair", "magepower", "magepower",
+      "united", "united", "swords", "fissure", "blackpendant",
+      "prematureburial",
       // 陷阱 10
       "traphole", "traphole", "mirrorforce", "sakuretsu", "sakuretsu",
       "magiccylinder", "waboku", "callofhaunted", "torrential", "bottomless",
@@ -229,28 +220,23 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 8. pyro 烈焰战场 ---------- */
   pyro: {
     main: [
-      // 高星怪 4
-      "meteorb", "summonedskull", "summonedskull", "gaia",
-      // 炎属性/burn 核心 8
+      // 炎属性 18（无其他怪兽）
       "ehero_burstinatrix", "ehero_burstinatrix", "ehero_burstinatrix",
-      "commandknight", "commandknight",
-      "giantgerm", "giantgerm", "giantgerm",
-      // 其他低星 20
+      "commandknight", "commandknight", "commandknight",
       "cannonsoldier", "cannonsoldier", "cannonsoldier",
-      "witch", "witch", "witch",
-      "sangan", "sangan", "sangan",
-      "kuriboh", "kuriboh", "kuriboh",
-      "oldvindictive", "oldvindictive",
-      "exiled", "exiled",
-      "goblin", "goblin",
-      "lajinn", "lajinn",
-      // 魔法 18
-      "infernofire", "infernofire",
-      "blackpendant", "blackpendant",
-      "raigeki", "darkhole", "mst", "mst", "monsterreborn",
-      "potofgreed", "potofgreed", "gracefulcharity", "changeofheart",
-      "fissure", "smashing",
-      "yami", "axeofdespair", "magepower",
+      "blazinginpachi", "blazinginpachi", "blazinginpachi",
+      "flamemanipulator", "flamemanipulator", "flamemanipulator",
+      "firekraken", "firekraken", "firekraken",
+      // 魔法 32
+      "infernofire", "infernofire", "infernofire",
+      "blackpendant", "blackpendant", "blackpendant",
+      "raigeki", "darkhole", "mst", "mst", "mst", "monsterreborn",
+      "potofgreed", "potofgreed", "potofgreed",
+      "gracefulcharity", "gracefulcharity", "changeofheart",
+      "fissure", "fissure", "smashing", "smashing",
+      "swords", "swords", "swords",
+      "yami", "yami", "axeofdespair", "axeofdespair",
+      "magepower", "magepower", "united",
       // 陷阱 10
       "ringofdestruction", "ringofdestruction",
       "magiccylinder", "magiccylinder",
@@ -650,23 +636,20 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 20. monarch 帝王降临 ---------- */
   monarch: {
     main: [
-      // 高星怪 12
-      "blueyes", "blueyes",
-      "darkmagician", "darkmagician",
-      "summonedskull", "summonedskull", "summonedskull",
-      "gaia", "gaia",
-      "redeyes",
-      "vampirelord", "jinzo",
-      // 低星（祭品/支援）20
+      // 五帝 14
+      "zaborg", "zaborg", "zaborg",
+      "mobius", "mobius", "mobius",
+      "thestalos", "thestalos", "thestalos",
+      "granmarg", "granmarg", "granmarg",
+      "raiza", "raiza",
+      // 祭品/臣下 18
       "mysticalelf", "mysticalelf", "mysticalelf",
-      "stone", "stone",
+      "stone", "stone", "stone",
+      "gemini", "gemini", "gemini",
+      "battleox", "battleox", "battleox",
       "witch", "witch",
       "sangan", "sangan",
       "kuriboh", "kuriboh",
-      "goblin",
-      "lajinn", "lajinn",
-      "gemini", "celtic", "axe", "battleox",
-      "exiled", "magicianoffaith",
       // 魔法 18
       "ancientrules", "ancientrules",
       "curtain", "flute",
@@ -685,22 +668,20 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 21. gadget 齿轮机械 ---------- */
   gadget: {
     main: [
-      // 高星怪 6
-      "cyberdragon", "cyberdragon",
-      "jinzo", "ancientgeargolem",
-      "summonedskull", "gaia",
-      // 齿轮核心 9
+      // 齿轮三兄弟 9
       "greengadget", "greengadget", "greengadget",
       "redgadget", "redgadget", "redgadget",
       "yellowgadget", "yellowgadget", "yellowgadget",
-      // 机械低星 11
+      // 机械族 23（无其他怪兽）
+      "cyberdragon", "cyberdragon", "cyberdragon",
+      "jinzo", "jinzo",
+      "ancientgeargolem",
+      "ancientgearbeast", "ancientgearbeast",
       "proto", "proto", "proto",
-      "mechanicalchaser", "mechanicalchaser",
-      "xheadcannon", "xheadcannon",
-      "reflectbounder", "reflectbounder",
-      "cannonsoldier", "cannonsoldier",
-      // 泛用低星 6
-      "witch", "sangan", "kuriboh", "kuriboh", "gemini", "mysticalelf",
+      "mechanicalchaser", "mechanicalchaser", "mechanicalchaser",
+      "xheadcannon", "xheadcannon", "xheadcannon",
+      "reflectbounder", "reflectbounder", "reflectbounder",
+      "cannonsoldier", "cannonsoldier", "cannonsoldier",
       // 魔法 18
       "powerbond", "powerbond",
       "cyberrepair", "cyberrepair",
@@ -719,21 +700,19 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 22. cyber 电子龙OTK ---------- */
   cyber: {
     main: [
-      // 高星怪 5
+      // 电子龙核心 6
       "cyberdragon", "cyberdragon", "cyberdragon",
-      "ancientgeargolem", "summonedskull",
-      // 电子/机械低星 15
       "proto", "proto", "proto",
-      "greengadget", "greengadget",
-      "redgadget", "redgadget",
-      "yellowgadget", "yellowgadget",
-      "mechanicalchaser", "mechanicalchaser",
-      "xheadcannon", "xheadcannon",
-      "reflectbounder", "reflectbounder",
-      // 泛用低星 12
-      "witch", "witch", "sangan", "sangan",
-      "kuriboh", "kuriboh", "gemini", "gemini",
-      "lajinn", "lajinn", "exiled", "mysticalelf",
+      // 机械族 26（无其他怪兽）
+      "cyberphoenix", "cyberphoenix", "cyberphoenix",
+      "ydragonhead", "ydragonhead", "ydragonhead",
+      "zmetaltank", "zmetaltank", "zmetaltank",
+      "xheadcannon", "xheadcannon", "xheadcannon",
+      "mechanicalchaser", "mechanicalchaser", "mechanicalchaser",
+      "reflectbounder", "reflectbounder", "reflectbounder",
+      "cannonsoldier", "cannonsoldier", "cannonsoldier",
+      "geargolem", "geargolem", "geargolem",
+      "jinzo", "jinzo",
       // 魔法 18
       "powerbond", "powerbond", "powerbond",
       "cyberrepair", "cyberrepair",
@@ -746,29 +725,26 @@ const EXTRA_DECK_PRESETS = {
       "magiccylinder", "waboku", "callofhaunted",
       "torrential", "bottomless", "trapstun",
     ],
-    extra: ["cybertwin", "cybertwin", "cybertwin"],
+    extra: ["cybertwin", "cybertwin", "cybertwin", "cyberend", "cyberend"],
   },
 
   /* ---------- 23. jinzo 人造人陷阱封印 ---------- */
   jinzo: {
     main: [
-      // 高星怪 5
+      // 人造人核心 3
       "jinzo", "jinzo", "jinzo",
-      "summonedskull", "darkmagician",
-      // 机械低星 12
+      // 机械族 29（无其他怪兽）
       "proto", "proto", "proto",
-      "greengadget", "greengadget",
-      "redgadget", "redgadget",
-      "yellowgadget", "yellowgadget",
-      "mechanicalchaser", "mechanicalchaser",
-      "xheadcannon",
-      // 泛用低星 15
-      "witch", "witch", "witch",
-      "sangan", "sangan", "sangan",
-      "kuriboh", "kuriboh", "kuriboh",
-      "gemini", "gemini",
-      "lajinn", "lajinn",
-      "exiled", "mysticalelf",
+      "greengadget", "greengadget", "greengadget",
+      "redgadget", "redgadget", "redgadget",
+      "yellowgadget", "yellowgadget", "yellowgadget",
+      "mechanicalchaser", "mechanicalchaser", "mechanicalchaser",
+      "xheadcannon", "xheadcannon",
+      "reflectbounder", "reflectbounder", "reflectbounder",
+      "cannonsoldier", "cannonsoldier", "cannonsoldier",
+      "geargolem", "geargolem", "geargolem",
+      "cyberdragon", "cyberdragon",
+      "ancientgeargolem",
       // 魔法 18
       "raigeki", "darkhole", "mst", "mst", "heavystorm",
       "monsterreborn", "potofgreed", "potofgreed", "gracefulcharity",
@@ -785,21 +761,20 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 24. ancientgear 古代机械 ---------- */
   ancientgear: {
     main: [
-      // 高星怪 5
+      // 古代机械核心 9
       "ancientgeargolem", "ancientgeargolem", "ancientgeargolem",
-      "summonedskull", "gaia",
-      // 机械低星 14
+      "ancientgearbeast", "ancientgearbeast", "ancientgearbeast",
+      "ancientgearsoldier", "ancientgearsoldier", "ancientgearsoldier",
+      // 机械族 23（无其他怪兽）
+      "geargolem", "geargolem",
       "proto", "proto", "proto",
-      "greengadget", "greengadget",
-      "redgadget", "redgadget",
-      "yellowgadget", "yellowgadget",
-      "mechanicalchaser", "mechanicalchaser",
+      "greengadget", "greengadget", "greengadget",
+      "redgadget", "redgadget", "redgadget",
+      "yellowgadget", "yellowgadget", "yellowgadget",
+      "mechanicalchaser", "mechanicalchaser", "mechanicalchaser",
       "xheadcannon", "xheadcannon",
-      "reflectbounder",
-      // 泛用低星 13
-      "witch", "witch", "sangan", "sangan",
-      "kuriboh", "kuriboh", "gemini", "gemini",
-      "lajinn", "lajinn", "goblin", "goblin", "exiled",
+      "reflectbounder", "reflectbounder",
+      "cannonsoldier", "cannonsoldier",
       // 魔法 18
       "powerbond", "powerbond",
       "cyberrepair", "polymerization",
@@ -817,10 +792,10 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 25. ehero_pure 纯元素英雄 ---------- */
   ehero_pure: {
     main: [
-      // 高星怪 4
-      "ehero_bladedge", "ehero_bladedge", "ehero_bladedge",
-      "darkmagician",
-      // 英雄低星 22
+      // 元素英雄全员纯血：高星 5
+      "ehero_bladedge", "ehero_bladedge",
+      "ehero_neos", "ehero_neos", "ehero_neos",
+      // 下级元素英雄 27
       "ehero_avian", "ehero_avian", "ehero_avian",
       "ehero_burstinatrix", "ehero_burstinatrix", "ehero_burstinatrix",
       "ehero_clayman", "ehero_clayman", "ehero_clayman",
@@ -828,8 +803,8 @@ const EXTRA_DECK_PRESETS = {
       "ehero_bubbleman", "ehero_bubbleman", "ehero_bubbleman",
       "ehero_wildheart", "ehero_wildheart", "ehero_wildheart",
       "ehero_stratos", "ehero_stratos", "ehero_stratos",
-      // 泛用低星 7
-      "witch", "sangan", "kuriboh", "kuriboh", "gemini", "mysticalelf", "exiled",
+      "ehero_woodsman", "ehero_woodsman", "ehero_woodsman",
+      "ehero_necroshade", "ehero_necroshade", "ehero_necroshade",
       // 魔法 18
       "polymerization", "polymerization", "polymerization",
       "e_call", "e_call", "e_call",
@@ -846,32 +821,31 @@ const EXTRA_DECK_PRESETS = {
     extra: [
       "ehero_flamewingman", "ehero_flamewingman",
       "ehero_thundergiant", "ehero_thundergiant",
-      "ehero_wildedge", "ehero_wildedge",
+      "ehero_wildedge",
+      "ehero_shiningflarewingman",
+      "ehero_shiningphoenixenforcer",
+      "ehero_mudballman",
+      "ehero_steamhealer",
     ],
   },
 
   /* ---------- 26. vampire 吸血鬼 ---------- */
   vampire: {
     main: [
-      // 高星怪 6
+      // 高星不死 6
       "vampirelord", "vampirelord", "vampirelord",
-      "ryukokki", "ryukokki",
-      "despair",
-      // 不死低星 15
+      "ryukokki", "ryukokki", "ryukokki",
+      // 不死族 26（无其他怪兽）
       "zombiemaster", "zombiemaster", "zombiemaster",
       "spiritreaper", "spiritreaper", "spiritreaper",
+      "despair", "despair", "despair",
       "patrician", "patrician",
-      "sinisterserpent", "sinisterserpent", "sinisterserpent",
-      "witch", "witch",
-      "sangan", "sangan",
-      // 泛用低星 11
-      "kuriboh", "kuriboh",
-      "oldvindictive", "oldvindictive",
-      "maneater", "maneater",
-      "magicianoffaith", "magicianoffaith",
-      "mysticalelf", "mysticalelf",
-      "exiled",
-      // 魔法 18
+      "zombyra", "zombyra", "zombyra",
+      "vampirelady", "vampirelady", "vampirelady",
+      "goblinzombie", "goblinzombie", "goblinzombie",
+      "undeadwarrior", "undeadwarrior", "undeadwarrior",
+      "skullservant", "skullservant", "skullservant",
+      // 魔法 19
       "bookoflife", "bookoflife", "bookoflife",
       "mummycall", "mummycall",
       "prematureburial",
@@ -889,21 +863,19 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 27. amazoness 亚马逊剑士 ---------- */
   amazoness: {
     main: [
-      // 高星怪 5
+      // 高星战士 5
       "gaia", "gaia",
-      "swordstalker", "swordstalker",
-      "summonedskull",
-      // 战士低星 18
+      "swordstalker", "swordstalker", "swordstalker",
+      // 战士族 27（无其他怪兽）
       "amazoness", "amazoness", "amazoness",
+      "amazonessqueen", "amazonessqueen", "amazonessqueen",
       "commandknight", "commandknight", "commandknight",
       "maraudingcaptain", "maraudingcaptain", "maraudingcaptain",
-      "warriordai", "warriordai",
+      "gearfried", "gearfried", "gearfried",
+      "warriordai", "warriordai", "warriordai",
       "celtic", "celtic", "celtic",
-      "axe", "axe",
-      "exiled", "exiled",
-      // 泛用低星 9
-      "witch", "witch", "sangan", "sangan",
-      "kuriboh", "kuriboh", "gemini", "mysticalelf", "lajinn",
+      "axe", "axe", "axe",
+      "exiled", "exiled", "exiled",
       // 魔法 18
       "reinforcement", "reinforcement",
       "warriorreturning", "warriorreturning",
@@ -921,20 +893,20 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 28. skilled_magician 熟练魔术师 ---------- */
   skilled_magician: {
     main: [
-      // 高星怪 5
+      // 高星魔法师 6
       "darkmagician", "darkmagician", "darkmagician",
-      "darkmagiciangirl", "darkmagiciangirl",
-      // 魔法师低星 18
+      "darkmagiciangirl", "darkmagiciangirl", "darkmagiciangirl",
+      // 魔法师族 26（无其他怪兽）
       "skilledwhitemagician", "skilledwhitemagician", "skilledwhitemagician",
-      "gemini", "gemini", "gemini",
-      "mysticalelf", "mysticalelf", "mysticalelf",
+      "skilledblackmagician", "skilledblackmagician", "skilledblackmagician",
+      "breaker", "breaker", "breaker",
+      "magicianvalkyria", "magicianvalkyria", "magicianvalkyria",
+      "apprenticemagician", "apprenticemagician", "apprenticemagician",
+      "gemini", "gemini",
+      "mysticalelf", "mysticalelf",
       "witch", "witch", "witch",
       "oldvindictive", "oldvindictive",
       "magicianoffaith", "magicianoffaith",
-      "lordofdragons", "lordofdragons",
-      // 泛用低星 9
-      "sangan", "sangan", "kuriboh", "kuriboh",
-      "lajinn", "lajinn", "exiled", "maneater", "penguin",
       // 魔法 18
       "thousandknives", "thousandknives",
       "darkmagicattack", "darkmagicattack",
@@ -953,21 +925,19 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 29. marauding 切入队长战士 ---------- */
   marauding: {
     main: [
-      // 高星怪 5
-      "gaia", "gaia",
-      "swordstalker",
-      "summonedskull", "darkmagician",
-      // 战士低星 19
+      // 高星战士 5
+      "gaia", "gaia", "gaia",
+      "swordstalker", "swordstalker",
+      // 战士族 27（无其他怪兽）
       "maraudingcaptain", "maraudingcaptain", "maraudingcaptain",
       "commandknight", "commandknight", "commandknight",
-      "amazoness", "amazoness",
-      "warriordai", "warriordai",
+      "gearfried", "gearfried", "gearfried",
+      "amazoness", "amazoness", "amazoness",
+      "amazonessqueen", "amazonessqueen", "amazonessqueen",
+      "warriordai", "warriordai", "warriordai",
       "celtic", "celtic", "celtic",
       "axe", "axe", "axe",
       "exiled", "exiled", "exiled",
-      // 泛用低星 8
-      "witch", "sangan", "kuriboh", "kuriboh",
-      "gemini", "gemini", "mysticalelf", "lajinn",
       // 魔法 18
       "reinforcement", "reinforcement",
       "warriorreturning", "warriorreturning",
@@ -985,26 +955,23 @@ const EXTRA_DECK_PRESETS = {
   /* ---------- 30. angel 天使代行者 ---------- */
   angel: {
     main: [
-      // 高星怪 4
-      "blueyes", "darkmagician", "summonedskull", "gaia",
-      // 天使低星 16
+      // 光属性天使/仙灵 30（无其他怪兽）
       "dunames", "dunames", "dunames",
       "shiningabyss", "shiningabyss", "shiningabyss",
       "mudora", "mudora", "mudora",
       "hoshiningen", "hoshiningen", "hoshiningen",
-      "mars", "mars",
-      "ehero_sparkman", "ehero_sparkman",
-      // 泛用低星 12
-      "mysticalelf", "mysticalelf", "mysticalelf",
-      "skilledwhitemagician", "skilledwhitemagician",
-      "witch", "witch", "sangan", "sangan",
-      "kuriboh", "kuriboh", "magicianoffaith",
-      // 魔法 18
-      "ancientrules", "silvercry", "mountain",
+      "shiningangel", "shiningangel", "shiningangel",
+      "airknightparshath", "airknightparshath", "airknightparshath",
+      "zolga", "zolga", "zolga",
+      "mars", "mars", "mars",
+      "marie", "marie", "marie",
+      // 魔法 20
+      "ancientrules", "ancientrules", "silvercry", "silvercry", "silvercry", "mountain",
       "raigeki", "darkhole", "mst", "mst", "monsterreborn",
       "potofgreed", "potofgreed", "gracefulcharity", "changeofheart",
       "fissure", "smashing", "swords",
       "axeofdespair", "magepower", "united",
+      "swords", "swords",
       // 陷阱 10
       "solemnwishes", "solemnwishes",
       "traphole", "mirrorforce", "sakuretsu", "sakuretsu",
@@ -1017,36 +984,36 @@ const EXTRA_DECK_PRESETS = {
 
 // ===== 卡组元数据（选卡组界面展示用） =====
 const DECK_META = {
-  dragon: { name: "龙族霸主", desc: "以三张青眼白龙与真红眼为核心的高打点龙族卡组，唤龙笛、龙之支配者快速调度大龙，白龙疾风弹打出爆发伤害，可融合召唤青眼究极龙。" },
-  fiend: { name: "恶魔军团", desc: "恶魔召唤与来自黑暗的绝望领衔的暗属性恶魔军团，铺场后以装备魔法强化，地裂与粉碎清扫障碍，稳步压制。" },
-  spellcaster: { name: "魔导院", desc: "黑魔术师领衔的魔法师族正统卡组，熟练的白魔术师串联魔法，千把刀、黑·魔·导与魔术师之阵联动终结对局。" },
-  beastwarrior: { name: "野兽战士", desc: "米诺陶洛斯、哥布林突击部队等兽战士与元素英雄混编的中速强攻，增援、联合军与团结之力全面强化。" },
+  dragon: { name: "龙族霸主", desc: "海马流程的纯龙族卡组：三张青眼白龙领衔，暴君龙、宝石龙、亚历山大龙等龙族全员集结，唤龙笛与龙之支配者调度大龙，可融合召唤青眼究极龙。" },
+  fiend: { name: "恶魔军团", desc: "纯恶魔族军团：恶魔召唤、冥界魔王哈·迪斯、迅雷之魔王、恶魔士兵全线恶魔正统，铺场后以装备魔法强化，地裂与粉碎清扫障碍。" },
+  spellcaster: { name: "魔导院", desc: "纯魔法师族正统：黑魔术师领衔，熟练的白/黑魔术师、破坏剑士、魔术师女武神、见习魔术师全员魔术师血统，千把刀与黑·魔·导终结对局。" },
+  beastwarrior: { name: "野兽战士", desc: "纯兽战士/战士血统：米诺陶洛斯、哥布林突击部队、鳄鱼剑士、幻兽王加泽尔与元素英雄刃锋侠并肩，增援与团结之力全面强化。" },
   flip: { name: "翻转奇袭", desc: "食人虫、报复之老魔术师等翻转效果怪为核心，覆盖防守、翻转反制，抹杀之使徒精准针对里侧怪兽。" },
-  water: { name: "深海军团", desc: "企鹅士兵、死者之船等水属性防守反击体系，高防消耗对手资源，场地与装备魔法逐步建立优势。" },
-  rock: { name: "岩石堡垒", desc: "磁石战士四兄弟与岩石高守备阵容，可合体召唤磁石战士·电磁武神，攻守一体稳步推进。" },
-  pyro: { name: "烈焰战场", desc: "炎属性进攻卡组，黑炎弹、黑项链与破坏轮持续削减对手生命值，加农炮兵提供直伤补刀。" },
+  water: { name: "深海军团", desc: "纯水属性阵容：企鹅士兵、死者之船、水精灵苏伊金、水魔道士、七色鲸与深海巨怪加吉戈，高防消耗逐步建立优势。" },
+  rock: { name: "岩石堡垒", desc: "纯岩石族阵容：磁石战士四兄弟与巨石人、岩石食人魔并肩，黏土侠镇守防线，攻守一体稳步推进。" },
+  pyro: { name: "烈焰战场", desc: "纯炎属性进攻卡组：爆裂女郎、加农炮兵、燃烧的因帕奇、火焰克拉肯全线纵火，黑项链与破坏轮持续削减生命值。" },
   thunder: { name: "雷霆机械", desc: "电子龙与机械族混编的科技流，力量焊接融合电子双生龙，人造人封锁陷阱，攻守节奏均衡。" },
   equip: { name: "武装强化", desc: "装备魔法特化，恶魔之斧、魔之力、团结之力满编，低星怪兽武装后攻击力暴涨，速攻碾压。" },
   stall: { name: "铜墙铁壁", desc: "光之护封剑、神之恩惠与高守备怪兽构建的纯防守体系，拖延战局消耗对手，再以上级怪兽反击。" },
   burn: { name: "烈焰灼烧", desc: "烧血特化，加农炮兵、巨大病毒、黑项链、破坏轮全方位削减生命值，不依赖战斗也能取胜。" },
-  fusion: { name: "融合召唤", desc: "融合魔法满编的特化卡组，把元素英雄与电子龙融合成火焰翼人、电子双生龙、青眼究极龙等八种强力怪兽。" },
+  fusion: { name: "融合召唤", desc: "融合魔法满编的特化卡组，把元素英雄与电子龙融合成火焰翼人、电子双生龙、青眼究极龙等强力怪兽。" },
   beatdown: { name: "绝对武力", desc: "十一张上级怪兽的暴力卡组，青眼白龙、恶魔召唤、暗黑骑士盖亚全线高打点，配合装备魔法正面碾压。" },
   control: { name: "掌控全局", desc: "干扰控制流，心变夺取对手怪兽，大风暴与旋风清场，神之宣告、魔法干扰守护战局，逐步积累优势。" },
   graveyard: { name: "墓地复苏", desc: "不死与墓地利用卡组，生者之书、过早的埋葬、活死人的呼声反复唤醒墓地怪兽，僵尸之主持续展开攻势。" },
   handtrap: { name: "手卡干扰", desc: "手卡干扰与资源战卡组，栗子球、巨大病毒在手即可反制，大量抽卡魔法与防御陷阱保障续航。" },
   chaos: { name: "光暗混沌", desc: "光与暗属性均衡混编，姆多拉、闪耀深渊等光暗主力并进，阵容灵活、难以被针对。" },
   search: { name: "检索压缩", desc: "检索特化，三眼怪、黑森林的魔女、天空侠与齿轮互相串联，快速找到关键卡并压缩卡组。" },
-  monarch: { name: "帝王降临", desc: "上级怪兽多达十二张的祭品展开卡组，远古规则与黑魔术的幕帘直接召唤大牌，王者看破守护压制。" },
-  gadget: { name: "齿轮机械", desc: "绿、红、黄三色齿轮各三张互相检索，机械族低星铺场，力量焊接融合电子双生龙完成终结。" },
-  cyber: { name: "电子龙OTK", desc: "电子龙与原型电子龙满编，三张力量焊接融合三只电子双生龙，一回合打出毁灭性伤害的速攻卡组。" },
-  jinzo: { name: "陷阱封印", desc: "以人造人-念力震慑者封锁双方陷阱的科技流，陷阱无力化满编，在无陷阱干扰的环境下正面对决。" },
-  ancientgear: { name: "古代机械", desc: "三张古代机械巨人领衔的机械强攻，机械下级铺场铺垫，装备魔法与粉碎爆裂持续施压。" },
-  ehero_pure: { name: "纯元素英雄", desc: "元素英雄全员集结，天空侠检索、E·紧急呼叫调度，融合召唤火焰翼人、雷霆巨人、荒野大侠作战。" },
-  vampire: { name: "吸血鬼", desc: "吸血鬼领主与龙骨鬼领衔的不死军团，生者之书与木乃伊的呼声快速苏生，削魂的死灵稳固防线。" },
-  amazoness: { name: "亚马逊剑士", desc: "亚马逊剑士与指挥骑士为核心的战士族卡组，增援、战士的生还与联合军强化，攻守兼备。" },
-  skilled_magician: { name: "熟练魔术师", desc: "熟练的白魔术师积累魔法计数召唤黑魔术师，配合千把刀、黑·魔·导与魔术师之阵的魔术师体系。" },
-  marauding: { name: "切入队长", desc: "切入队长串联战士接连出阵，指挥骑士提升全队攻击，增援与战士的生还保持场面不断。" },
-  angel: { name: "天使代行者", desc: "月之使者、闪耀深渊、姆多拉等光属性天使阵容，神之惠回复生命，攻守均衡的光辉卡组。" },
+  monarch: { name: "帝王降临", desc: "五帝满编的帝王卡组：雷帝扎博尔格破坏怪兽、冰帝梅比乌斯清扫魔陷、炎帝特斯塔罗斯烧血，臣下做祭品，君临战场。" },
+  gadget: { name: "齿轮机械", desc: "纯机械族阵容：绿、红、黄三色齿轮各三张互相检索，电子龙与人造人坐镇，力量焊接融合电子双生龙完成终结。" },
+  cyber: { name: "电子龙OTK", desc: "丸藤亮的电子龙纯血：电子龙与原型电子龙满编，电子凤凰护卫，力量焊接融合电子双生龙、电子终结龙，一回合打出毁灭性伤害。" },
+  jinzo: { name: "陷阱封印", desc: "以人造人-念力震慑者领衔的纯机械族卡组，封锁双方陷阱，陷阱无力化满编，在无陷阱干扰的环境下正面对决。" },
+  ancientgear: { name: "古代机械", desc: "三张古代机械巨人领衔的纯机械族强攻，古代机械兽与士兵推进，装备魔法与粉碎爆裂持续施压。" },
+  ehero_pure: { name: "纯元素英雄", desc: "游城十代的元素英雄全员集结：新宇侠、森林侠、暗影侠参战，天空侠检索调度，融合召唤火焰翼人、闪耀火焰翼人、雷霆巨人、泥球侠等英雄阵容作战。" },
+  vampire: { name: "吸血鬼", desc: "纯不死族军团：吸血鬼领主与龙骨鬼领衔，暗黑僵尸兵、吸血鬼淑女、哥布林僵尸并肩，生者之书与木乃伊的呼声快速苏生。" },
+  amazoness: { name: "亚马逊剑士", desc: "纯战士族阵容：亚马逊女王与亚马逊剑士领衔，铁骑士吉亚弗里德、指挥骑士、切入队长并肩，增援与联合军强化，攻守兼备。" },
+  skilled_magician: { name: "熟练魔术师", desc: "纯魔法师族体系：熟练的白/黑魔术师积累魔法计数召唤黑魔术师，破坏剑士与女武神护卫，千把刀与黑·魔·导终结对局。" },
+  marauding: { name: "切入队长", desc: "纯战士族串联：切入队长呼唤战友接连出阵，铁骑士与亚马逊女王压阵，指挥骑士提升全队攻击，增援保持场面不断。" },
+  angel: { name: "天使代行者", desc: "纯光之天使阵容：光辉天使、空中骑士帕拉修斯、佐尔加、月之使者与姆多拉并肩，神之惠回复生命，攻守均衡的光辉卡组。" },
 };
 
 // ===== 构建函数（与 cards.mjs 中 buildDeck/buildExtra 语义一致） =====

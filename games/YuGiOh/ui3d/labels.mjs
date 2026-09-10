@@ -47,57 +47,16 @@
         gear: svgWrap(
           '<circle cx="12" cy="12" r="2.6"/><path d="M12 4.2v2.3M12 17.5v2.3M4.2 12h2.3M17.5 12h2.3M6.5 6.5l1.6 1.6M15.9 15.9l1.6 1.6M17.5 6.5l-1.6 1.6M8.1 15.9l-1.6 1.6"/>',
         ),
+        lp: svgWrap('<path d="M12 3.5 18.5 12 12 20.5 5.5 12Z"/><path d="M12 8.5v7"/>'),
       };
-      const ATTR_EM = {
-        光: "☀",
-        暗: "☾",
-        地: "⛰",
-        水: "💧",
-        炎: "🔥",
-        风: "🌬",
-      };
-      const RACE_EM = {
-        龙族: "🐉",
-        魔法师族: "🧙",
-        恶魔族: "😈",
-        战士族: "⚔",
-        岩石族: "🪨",
-        兽族: "🐺",
-        机械族: "⚙",
-        昆虫族: "🐛",
-        水族: "🐟",
-        爬虫类族: "🦎",
-        兽战士族: "🦁",
-        鸟兽族: "🦅",
-        雷族: "⚡",
-        植物族: "🌿",
-        天使族: "👼",
-      };
-      const DECK_LABELS = {
-        classic: "经典卡组",
-        hero: "元素英雄（游城十代）",
-        machine: "机械族",
-        blueeyes: "青眼白龙",
-        darkmagician: "黑魔术师",
-        redeyes: "真红眼黑龙",
-        harpie: "神鹰女郎",
-        magnet: "磁石战士",
-        warrior: "战士族",
-        zombie: "不死族",
-        fairy: "天使族",
-      };
-      const DECK_EMOJIS = {
-        classic: "⚔️",
-        hero: "🦸",
-        machine: "⚙️",
-        blueeyes: "🐉",
-        darkmagician: "🧙",
-        redeyes: "🐲",
-        harpie: "🦅",
-        magnet: "🧲",
-        warrior: "🗡️",
-        zombie: "🧟",
-        fairy: "👼",
+      /* 卡面属性角标文字（无图版卡面 / DOM 卡牌用；不使用 emoji） */
+      const ATTR_TXT = {
+        光: "光",
+        暗: "暗",
+        地: "地",
+        水: "水",
+        炎: "炎",
+        风: "风",
       };
       const PHASE_TIPS = {
         draw: ["抽卡阶段", "自动从卡组抽 1 张"],
@@ -116,5 +75,7 @@
         main2: "主要阶段 2",
         end: "结束阶段",
       };
+      /* 阶段流程顺序（阶段进度条用，抽卡→准备→主要1→战斗→主要2→结束） */
+      const PHASE_ORDER = ["draw", "standby", "main1", "battle", "main2", "end"];
 
-export { IC, ATTR_EM, RACE_EM, DECK_LABELS, DECK_EMOJIS, PHASE_TIPS, PHASE_NAMES };
+export { IC, ATTR_TXT, PHASE_TIPS, PHASE_NAMES, PHASE_ORDER };
